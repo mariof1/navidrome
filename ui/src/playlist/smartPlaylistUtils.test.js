@@ -64,8 +64,17 @@ describe('buildSmartCriteria', () => {
       sort: 'playcount',
     })
 
-    expect(criteria.all[0]).toEqual({ gt: { playcountallusers: 5 } })
+    expect(criteria.all[0]).toEqual({ inTheRange: { playcountallusers: [5, Number.MAX_SAFE_INTEGER] } })
     expect(criteria.sort).toBe('playcountallusers')
+  })
+
+  it('creates inclusive ranges for playcount bounds', () => {
+    const criteria = buildSmartCriteria({
+      smart: true,
+      maxPlayCount: 0,
+    })
+
+    expect(criteria.all[0]).toEqual({ inTheRange: { playcount: [Number.MIN_SAFE_INTEGER, 0] } })
   })
 
   it('builds include and exclude expressions', () => {
