@@ -11,10 +11,20 @@ import {
   ReferenceInput,
   SelectInput,
   useRecordContext,
+  Toolbar,
+  SaveButton,
+  DeleteButton,
 } from 'react-admin'
 import { isWritable, Title } from '../common'
 import SmartPlaylistFields from './SmartPlaylistFields'
 import { buildPlaylistPayload, parseCriteriaToForm } from './smartPlaylistUtils'
+
+const PlaylistEditToolbar = (props) => (
+  <Toolbar {...props}>
+    <SaveButton transform={buildPlaylistPayload} />
+    <DeleteButton />
+  </Toolbar>
+)
 
 const SyncFragment = ({ formData, variant, ...rest }) => {
   return (
@@ -41,6 +51,7 @@ const PlaylistEditForm = (props) => {
       variant={'outlined'}
       {...props}
       initialValues={{ smart: !!record?.rules, ...smartDefaults }}
+      toolbar={<PlaylistEditToolbar />}
     >
       <TextInput source="name" validate={required()} />
       <TextInput multiline source="comment" />
@@ -69,7 +80,7 @@ const PlaylistEditForm = (props) => {
 }
 
 const PlaylistEdit = (props) => (
-  <Edit title={<PlaylistTitle />} actions={false} {...props} transform={buildPlaylistPayload}>
+  <Edit title={<PlaylistTitle />} actions={false} {...props}>
     <PlaylistEditForm {...props} />
   </Edit>
 )

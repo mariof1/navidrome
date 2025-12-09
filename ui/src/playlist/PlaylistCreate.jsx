@@ -12,10 +12,18 @@ import {
   usePermissions,
   ReferenceInput,
   SelectInput,
+  Toolbar,
+  SaveButton,
 } from 'react-admin'
 import { Title } from '../common'
 import SmartPlaylistFields from './SmartPlaylistFields'
 import { buildPlaylistPayload } from './smartPlaylistUtils'
+
+const PlaylistCreateToolbar = (props) => (
+  <Toolbar {...props}>
+    <SaveButton transform={buildPlaylistPayload} />
+  </Toolbar>
+)
 
 const PlaylistCreate = (props) => {
   const { basePath } = props
@@ -29,8 +37,6 @@ const PlaylistCreate = (props) => {
     name: `${resourceName}`,
   })
 
-  const transform = (data) => buildPlaylistPayload(data)
-
   const onSuccess = () => {
     notify('ra.notification.created', 'info', { smart_count: 1 })
     redirect('list', basePath)
@@ -42,9 +48,13 @@ const PlaylistCreate = (props) => {
       title={<Title subTitle={title} />}
       {...props}
       onSuccess={onSuccess}
-      transform={transform}
     >
-      <SimpleForm redirect="list" variant={'outlined'} initialValues={{ public: true }}>
+      <SimpleForm
+        redirect="list"
+        variant={'outlined'}
+        initialValues={{ public: true }}
+        toolbar={<PlaylistCreateToolbar />}
+      >
         <TextInput source="name" validate={required()} />
         <TextInput multiline source="comment" />
         {permissions === 'admin' && (
