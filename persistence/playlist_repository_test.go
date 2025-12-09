@@ -57,9 +57,9 @@ var _ = Describe("PlaylistRepository", func() {
 			_, err := repo.Get("666")
 			Expect(err).To(MatchError(model.ErrNotFound))
 		})
-		It("returns all tracks", func() {
-			pls, err := repo.GetWithTracks(plsBest.ID, true, false)
-			Expect(err).ToNot(HaveOccurred())
+                It("returns all tracks", func() {
+                        pls, err := repo.GetWithTracks(plsBest.ID, true, false)
+                        Expect(err).ToNot(HaveOccurred())
 			Expect(pls.Name).To(Equal(plsBest.Name))
 			Expect(pls.Tracks).To(HaveLen(2))
 			Expect(pls.Tracks[0].ID).To(Equal("1"))
@@ -73,9 +73,32 @@ var _ = Describe("PlaylistRepository", func() {
 			mfs := pls.MediaFiles()
 			Expect(mfs).To(HaveLen(2))
 			Expect(mfs[0].ID).To(Equal(songDayInALife.ID))
-			Expect(mfs[1].ID).To(Equal(songRadioactivity.ID))
-		})
-	})
+                        Expect(mfs[1].ID).To(Equal(songRadioactivity.ID))
+                })
+
+                It("includes missing tracks only when requested", func() {
+                        newPls := model.Playlist{Name: "Missing Tracks", OwnerID: "userid"}
+                        newPls.AddMediaFilesByID([]string{"1001"})
+
+                        Expect(repo.Put(&newPls)).To(Succeed())
+                        defer repo.Delete(newPls.ID)
+
+                        db := GetDBXBuilder()
+                        _, err := db.Update("media_file", dbx.Params{"missing": true}, dbx.HashExp{"id": "1001"}).Execute()
+                        Expect(err).ToNot(HaveOccurred())
+                        defer db.Update("media_file", dbx.Params{"missing": false}, dbx.HashExp{"id": "1001"}).Execute()
+                        Expect(err).ToNot(HaveOccurred())
+
+                        plsWithMissing, err := repo.GetWithTracks(newPls.ID, false, true)
+                        Expect(err).ToNot(HaveOccurred())
+                        Expect(plsWithMissing.Tracks).To(HaveLen(1))
+                        Expect(plsWithMissing.Tracks[0].Missing).To(BeTrue())
+
+                        plsWithoutMissing, err := repo.GetWithTracks(newPls.ID, false, false)
+                        Expect(err).ToNot(HaveOccurred())
+                        Expect(plsWithoutMissing.Tracks).To(BeEmpty())
+                })
+        })
 
 	It("Put/Exists/Delete", func() {
 		By("saves the playlist to the DB")
