@@ -44,10 +44,38 @@ func (any Any) ChildPlaylistIds() (ids []string) {
 	return extractPlaylistIds(any)
 }
 
+func multiValueAnd(expr map[string]any, build func(map[string]any) Expression) Expression {
+	for f, v := range expr {
+		if values := sliceValues(v); len(values) > 1 {
+			and := make(All, 0, len(values))
+			for _, value := range values {
+				and = append(and, build(map[string]any{f: value}))
+			}
+			return and
+		}
+	}
+	return nil
+}
+
+func sliceValues(v any) []any {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return nil
+	}
+	values := make([]any, 0, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		values = append(values, rv.Index(i).Interface())
+	}
+	return values
+}
+
 type Is squirrel.Eq
 type Eq = Is
 
 func (is Is) ToSql() (sql string, args []any, err error) {
+	if expr := multiValueAnd(is, func(m map[string]any) Expression { return Is(m) }); expr != nil {
+		return expr.ToSql()
+	}
 	if isRoleExpr(is) {
 		return mapRoleExpr(is, false).ToSql()
 	}
@@ -126,6 +154,9 @@ func (af After) MarshalJSON() ([]byte, error) {
 type Contains map[string]any
 
 func (ct Contains) ToSql() (sql string, args []any, err error) {
+	if expr := multiValueAnd(ct, func(m map[string]any) Expression { return Contains(m) }); expr != nil {
+		return expr.ToSql()
+	}
 	lk := squirrel.Like{}
 	for f, v := range mapFields(ct) {
 		lk[f] = fmt.Sprintf("%%%s%%", v)
