@@ -41,7 +41,6 @@ const PlaylistEditForm = (props) => {
       variant={'outlined'}
       {...props}
       initialValues={{ smart: !!record?.rules, ...smartDefaults }}
-      transform={buildPlaylistPayload}
     >
       <TextInput source="name" validate={required()} />
       <TextInput multiline source="comment" />
@@ -70,7 +69,7 @@ const PlaylistEditForm = (props) => {
 }
 
 const PlaylistEdit = (props) => (
-  <Edit title={<PlaylistTitle />} actions={false} {...props}>
+  <Edit title={<PlaylistTitle />} actions={false} {...props} transform={buildPlaylistPayload}>
     <PlaylistEditForm {...props} />
   </Edit>
 )
