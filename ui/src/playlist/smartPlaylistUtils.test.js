@@ -92,19 +92,15 @@ describe('buildSmartCriteria', () => {
     )
   })
 
-  it('groups included strings into OR expressions', () => {
+  it('requires all included genres', () => {
     const criteria = buildSmartCriteria({
       smart: true,
       includeGenres: ['Rock', 'Metal'],
     })
 
     expect(criteria.all).toEqual([
-      {
-        any: [
-          { contains: { genre: 'Rock' } },
-          { contains: { genre: 'Metal' } },
-        ],
-      },
+      { contains: { genre: 'Rock' } },
+      { contains: { genre: 'Metal' } },
     ])
   })
 })
