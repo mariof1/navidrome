@@ -215,12 +215,19 @@
           "minPlayCount": "Min play count",
           "maxPlayCount": "Max play count",
           "playCountAllUsers": "Include play count from all users",
-          "artist": "Artist",
-          "album": "Album",
-          "genre": "Genre",
+          "includeArtist": "Include artists",
+          "excludeArtist": "Exclude artists",
+          "includeAlbum": "Include albums",
+          "excludeAlbum": "Exclude albums",
+          "includeGenre": "Include genres",
+          "excludeGenre": "Exclude genres",
           "sort": "Sort by",
           "order": "Order",
           "limit": "Track limit"
+        },
+        "sections": {
+          "criteria": "Criteria",
+          "results": "Results"
         },
         "sort": {
           "default": "(Default)",

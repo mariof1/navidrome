@@ -25,6 +25,22 @@ describe('parseCriteriaToForm', () => {
     expect(form.maxPlayCount).toBe(10)
     expect(form.sort).toBe('playcount')
   })
+
+  it('extracts include and exclude strings as arrays', () => {
+    const form = parseCriteriaToForm({
+      all: [
+        { contains: { artist: 'Artist 1' } },
+        { notContains: { album: 'Album 1' } },
+        { contains: { genre: 'Rock' } },
+        { notContains: { genre: 'Metal' } },
+      ],
+    })
+
+    expect(form.includeArtists).toEqual(['Artist 1'])
+    expect(form.excludeAlbums).toEqual(['Album 1'])
+    expect(form.includeGenres).toEqual(['Rock'])
+    expect(form.excludeGenres).toEqual(['Metal'])
+  })
 })
 
 describe('buildSmartCriteria', () => {
@@ -38,6 +54,26 @@ describe('buildSmartCriteria', () => {
 
     expect(criteria.all[0]).toEqual({ gt: { playcountallusers: 5 } })
     expect(criteria.sort).toBe('playcountallusers')
+  })
+
+  it('builds include and exclude expressions', () => {
+    const criteria = buildSmartCriteria({
+      smart: true,
+      includeArtists: ['Artist 1', 'Artist 2'],
+      excludeAlbums: ['Album 1'],
+      includeGenres: ['Rock'],
+      excludeGenres: ['Metal'],
+    })
+
+    expect(criteria.all).toEqual(
+      expect.arrayContaining([
+        { contains: { artist: 'Artist 1' } },
+        { contains: { artist: 'Artist 2' } },
+        { notContains: { album: 'Album 1' } },
+        { contains: { genre: 'Rock' } },
+        { notContains: { genre: 'Metal' } },
+      ])
+    )
   })
 })
 

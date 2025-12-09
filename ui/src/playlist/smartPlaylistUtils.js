@@ -45,10 +45,10 @@ const extractSort = (sort) => {
   return { sort: normalizedSort, useAllUsers: false }
 }
 
-const extractString = (rules = [], field) => {
-  const match = rules.find((rule) => rule.contains && rule.contains[field])
-  return match?.contains[field]
-}
+const extractStrings = (rules = [], field, operator = 'contains') =>
+  rules
+    .filter((rule) => rule[operator] && rule[operator][field])
+    .map((rule) => rule[operator][field])
 
 export const parseCriteriaToForm = (criteria) => {
   if (!criteria?.expression && !criteria?.Expression && !criteria?.all && !criteria?.any) {
@@ -71,13 +71,38 @@ export const parseCriteriaToForm = (criteria) => {
     minPlayCount: playCountRange.min,
     maxPlayCount: playCountRange.max,
     includeAllUsersPlayCount,
-    artist: extractString(rules, 'artist'),
-    album: extractString(rules, 'album'),
-    genre: extractString(rules, 'genre'),
+    includeArtists: extractStrings(rules, 'artist'),
+    excludeArtists: extractStrings(rules, 'artist', 'notContains'),
+    includeAlbums: extractStrings(rules, 'album'),
+    excludeAlbums: extractStrings(rules, 'album', 'notContains'),
+    includeGenres: extractStrings(rules, 'genre'),
+    excludeGenres: extractStrings(rules, 'genre', 'notContains'),
     sort: sortData.sort,
     order: criteria.order?.toLowerCase(),
     trackLimit: criteria.limit,
   }
+}
+
+const normalizeStrings = (value) => {
+  if (value === undefined || value === null) {
+    return []
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry) => entry !== undefined && entry !== null)
+      .map((entry) => `${entry}`.trim())
+      .filter(Boolean)
+  }
+
+  const normalized = `${value}`.trim()
+  return normalized ? [normalized] : []
+}
+
+const addStringExpressions = (expressions, values, operator, field) => {
+  normalizeStrings(values).forEach((value) => {
+    expressions.push({ [operator]: { [field]: value } })
+  })
 }
 
 const buildRangeExpressions = (field, min, max) => {
@@ -114,15 +139,12 @@ export const buildSmartCriteria = (formData) => {
     ...buildRangeExpressions(playCountField, formData.minPlayCount, formData.maxPlayCount),
   ]
 
-  if (formData.artist) {
-    expressions.push({ contains: { artist: formData.artist } })
-  }
-  if (formData.album) {
-    expressions.push({ contains: { album: formData.album } })
-  }
-  if (formData.genre) {
-    expressions.push({ contains: { genre: formData.genre } })
-  }
+  addStringExpressions(expressions, formData.includeArtists, 'contains', 'artist')
+  addStringExpressions(expressions, formData.excludeArtists, 'notContains', 'artist')
+  addStringExpressions(expressions, formData.includeAlbums, 'contains', 'album')
+  addStringExpressions(expressions, formData.excludeAlbums, 'notContains', 'album')
+  addStringExpressions(expressions, formData.includeGenres, 'contains', 'genre')
+  addStringExpressions(expressions, formData.excludeGenres, 'notContains', 'genre')
 
   if (expressions.length === 0) {
     expressions.push({ gt: { duration: 0 } })
@@ -153,9 +175,12 @@ export const stripSmartFormFields = (data) => {
     minPlayCount,
     maxPlayCount,
     includeAllUsersPlayCount,
-    artist,
-    album,
-    genre,
+    includeArtists,
+    excludeArtists,
+    includeAlbums,
+    excludeAlbums,
+    includeGenres,
+    excludeGenres,
     sort,
     order,
     trackLimit,
@@ -169,9 +194,12 @@ export const stripSmartFormFields = (data) => {
     minPlayCount,
     maxPlayCount,
     includeAllUsersPlayCount,
-    artist,
-    album,
-    genre,
+    includeArtists,
+    excludeArtists,
+    includeAlbums,
+    excludeAlbums,
+    includeGenres,
+    excludeGenres,
     sort,
     order,
     trackLimit,
