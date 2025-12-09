@@ -205,7 +205,41 @@
         "songCount": "Songs",
         "comment": "Comment",
         "sync": "Auto-import",
-        "path": "Import from"
+        "path": "Import from",
+        "smart": "Smart playlist"
+      },
+      "smart": {
+        "fields": {
+          "minDuration": "Min duration (seconds)",
+          "maxDuration": "Max duration (seconds)",
+          "minPlayCount": "Min play count",
+          "maxPlayCount": "Max play count",
+          "artist": "Artist",
+          "album": "Album",
+          "genre": "Genre",
+          "sort": "Sort by",
+          "order": "Order",
+          "limit": "Track limit"
+        },
+        "sort": {
+          "default": "(Default)",
+          "random": "Random",
+          "title": "Title",
+          "album": "Album",
+          "artist": "Artist",
+          "duration": "Duration",
+          "playcount": "Play count",
+          "lastPlayed": "Last played",
+          "dateAdded": "Date added"
+        },
+        "order": {
+          "default": "(Default)",
+          "asc": "Ascending",
+          "desc": "Descending"
+        },
+        "help": {
+          "duration": "Duration in seconds"
+        }
       },
       "actions": {
         "selectPlaylist": "Select a playlist:",

@@ -9,8 +9,13 @@ import {
   useRefresh,
   useNotify,
   useRedirect,
+  usePermissions,
+  ReferenceInput,
+  SelectInput,
 } from 'react-admin'
 import { Title } from '../common'
+import SmartPlaylistFields from './SmartPlaylistFields'
+import { buildPlaylistPayload } from './smartPlaylistUtils'
 
 const PlaylistCreate = (props) => {
   const { basePath } = props
@@ -18,10 +23,13 @@ const PlaylistCreate = (props) => {
   const notify = useNotify()
   const redirect = useRedirect()
   const translate = useTranslate()
+  const { permissions } = usePermissions()
   const resourceName = translate('resources.playlist.name', { smart_count: 1 })
   const title = translate('ra.page.create', {
     name: `${resourceName}`,
   })
+
+  const transform = (data) => buildPlaylistPayload(data)
 
   const onSuccess = () => {
     notify('ra.notification.created', 'info', { smart_count: 1 })
@@ -30,11 +38,32 @@ const PlaylistCreate = (props) => {
   }
 
   return (
-    <Create title={<Title subTitle={title} />} {...props} onSuccess={onSuccess}>
-      <SimpleForm redirect="list" variant={'outlined'}>
+    <Create
+      title={<Title subTitle={title} />}
+      {...props}
+      onSuccess={onSuccess}
+      transform={transform}
+    >
+      <SimpleForm redirect="list" variant={'outlined'} initialValues={{ public: true }}>
         <TextInput source="name" validate={required()} />
         <TextInput multiline source="comment" />
+        {permissions === 'admin' && (
+          <ReferenceInput
+            source="ownerId"
+            reference="user"
+            perPage={0}
+            sort={{ field: 'name', order: 'ASC' }}
+          >
+            <SelectInput
+              label={'resources.playlist.fields.ownerName'}
+              optionText="userName"
+              optionValue="id"
+              allowEmpty
+            />
+          </ReferenceInput>
+        )}
         <BooleanInput source="public" initialValue={true} />
+        <SmartPlaylistFields />
       </SimpleForm>
     </Create>
   )
