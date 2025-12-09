@@ -46,6 +46,7 @@ var fieldMap = map[string]*mappedField{
 	"lastplayed":           {field: "annotation.play_date"},
 	"daterated":            {field: "annotation.rated_at"},
 	"playcount":            {field: "COALESCE(annotation.play_count, 0)"},
+	"playcountallusers":    {field: "COALESCE(annotation_all.play_count, 0)"},
 	"rating":               {field: "COALESCE(annotation.rating, 0)"},
 	"mbz_album_id":         {field: "media_file.mbz_album_id"},
 	"mbz_album_artist_id":  {field: "media_file.mbz_album_artist_id"},

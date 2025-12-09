@@ -68,6 +68,12 @@ const SmartPlaylistFields = () => {
                   label={translate('resources.playlist.smart.fields.maxPlayCount')}
                 />
               </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <BooleanInput
+                  source="includeAllUsersPlayCount"
+                  label={translate('resources.playlist.smart.fields.playCountAllUsers')}
+                />
+              </Grid>
 
               <Grid item xs={12} sm={6} md={4}>
                 <TextInput source="artist" label="resources.playlist.smart.fields.artist" />

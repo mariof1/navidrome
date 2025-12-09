@@ -156,15 +156,15 @@ func (r *playlistRepository) GetWithTracks(id string, refreshSmartPlaylist, incl
 	if refreshSmartPlaylist {
 		r.refreshSmartPlaylist(pls)
 	}
-        tracksQuery := Select().From("playlist_tracks").OrderBy("playlist_tracks.id")
-        if !includeMissing {
-                tracksQuery = tracksQuery.Where(Eq{"missing": false})
-        }
+	tracksQuery := Select().From("playlist_tracks").OrderBy("playlist_tracks.id")
+	if !includeMissing {
+		tracksQuery = tracksQuery.Where(Eq{"missing": false})
+	}
 
-        tracks, err := r.loadTracks(tracksQuery, id)
-        if err != nil {
-                log.Error(r.ctx, "Error loading playlist tracks ", "playlist", pls.Name, "id", pls.ID, err)
-                return nil, err
+	tracks, err := r.loadTracks(tracksQuery, id)
+	if err != nil {
+		log.Error(r.ctx, "Error loading playlist tracks ", "playlist", pls.Name, "id", pls.ID, err)
+		return nil, err
 	}
 	pls.SetTracks(tracks)
 	return pls, nil
@@ -284,6 +284,10 @@ func (r *playlistRepository) refreshSmartPlaylist(pls *model.Playlist) bool {
 		"annotation.item_id = media_file.id" +
 		" AND annotation.item_type = 'media_file'" +
 		" AND annotation.user_id = '" + usr.ID + "')")
+
+	sq = sq.LeftJoin("(SELECT item_id, item_type, SUM(play_count) AS play_count, MAX(play_date) AS play_date " +
+		"FROM annotation WHERE item_type = 'media_file' GROUP BY item_id, item_type) annotation_all ON (" +
+		"annotation_all.item_id = media_file.id AND annotation_all.item_type = 'media_file')")
 
 	// Only include media files from libraries the user has access to
 	sq = r.applyLibraryFilter(sq, "media_file")

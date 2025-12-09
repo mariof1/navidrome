@@ -214,6 +214,7 @@
           "maxDuration": "Max duration (seconds)",
           "minPlayCount": "Min play count",
           "maxPlayCount": "Max play count",
+          "playCountAllUsers": "Include play count from all users",
           "artist": "Artist",
           "album": "Album",
           "genre": "Genre",

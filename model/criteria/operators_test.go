@@ -35,6 +35,7 @@ var _ = Describe("Operators", func() {
 		Entry("isNot [numeric]", IsNot{"library_id": 1}, "media_file.library_id <> ?", 1),
 		Entry("isNot [numeric list]", IsNot{"library_id": []int{1, 2}}, "media_file.library_id NOT IN (?,?)", 1, 2),
 		Entry("gt", Gt{"playCount": 10}, "COALESCE(annotation.play_count, 0) > ?", 10),
+		Entry("gt playcount all users", Gt{"playCountAllUsers": 10}, "COALESCE(annotation_all.play_count, 0) > ?", 10),
 		Entry("lt", Lt{"playCount": 10}, "COALESCE(annotation.play_count, 0) < ?", 10),
 		Entry("contains", Contains{"title": "Low Rider"}, "media_file.title LIKE ?", "%Low Rider%"),
 		Entry("notContains", NotContains{"title": "Low Rider"}, "media_file.title NOT LIKE ?", "%Low Rider%"),
