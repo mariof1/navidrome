@@ -1,21 +1,48 @@
-const extractRange = (rules = [], field) => {
+const extractRange = (rules = [], fields) => {
   let min
   let max
+  const fieldsArray = Array.isArray(fields) ? fields : [fields]
   rules.forEach((rule) => {
-    if (rule.inTheRange && rule.inTheRange[field]) {
-      const [rMin, rMax] = rule.inTheRange[field]
-      min = rMin
-      max = rMax
-      return
+    if (rule.inTheRange) {
+      for (const field of fieldsArray) {
+        if (rule.inTheRange[field]) {
+          const [rMin, rMax] = rule.inTheRange[field]
+          min = rMin
+          max = rMax
+          return
+        }
+      }
     }
-    if (rule.gt && rule.gt[field] !== undefined) {
-      min = rule.gt[field]
-    }
-    if (rule.lt && rule.lt[field] !== undefined) {
-      max = rule.lt[field]
-    }
+    fieldsArray.forEach((field) => {
+      if (rule.gt && rule.gt[field] !== undefined) {
+        min = rule.gt[field]
+      }
+      if (rule.lt && rule.lt[field] !== undefined) {
+        max = rule.lt[field]
+      }
+    })
   })
-  return { min, max }
+  const field = fieldsArray.find(
+    (candidate) =>
+      rules.some(
+        (rule) =>
+          (rule.inTheRange && rule.inTheRange[candidate]) ||
+          (rule.gt && rule.gt[candidate] !== undefined) ||
+          (rule.lt && rule.lt[candidate] !== undefined)
+      )
+  )
+  return { min, max, field }
+}
+
+const extractSort = (sort) => {
+  const normalizedSort = sort?.toLowerCase()
+  if (normalizedSort === 'playcountallusers') {
+    return { sort: 'playcount', useAllUsers: true }
+  }
+  if (normalizedSort === 'playcount') {
+    return { sort: normalizedSort, useAllUsers: false }
+  }
+  return { sort: normalizedSort, useAllUsers: false }
 }
 
 const extractString = (rules = [], field) => {
@@ -32,7 +59,10 @@ export const parseCriteriaToForm = (criteria) => {
   const rules = Array.isArray(expr) ? expr : []
 
   const durationRange = extractRange(rules, 'duration')
-  const playCountRange = extractRange(rules, 'playcount')
+  const playCountRange = extractRange(rules, ['playcountallusers', 'playcount'])
+  const sortData = extractSort(criteria.sort)
+  const includeAllUsersPlayCount =
+    playCountRange.field === 'playcountallusers' || sortData.useAllUsers
 
   return {
     smart: true,
@@ -40,10 +70,11 @@ export const parseCriteriaToForm = (criteria) => {
     maxDuration: durationRange.max,
     minPlayCount: playCountRange.min,
     maxPlayCount: playCountRange.max,
+    includeAllUsersPlayCount,
     artist: extractString(rules, 'artist'),
     album: extractString(rules, 'album'),
     genre: extractString(rules, 'genre'),
-    sort: criteria.sort?.toLowerCase(),
+    sort: sortData.sort,
     order: criteria.order?.toLowerCase(),
     trackLimit: criteria.limit,
   }
@@ -70,9 +101,17 @@ export const buildSmartCriteria = (formData) => {
     return null
   }
 
+  const playCountField = formData.includeAllUsersPlayCount
+    ? 'playcountallusers'
+    : 'playcount'
+  const sortField =
+    formData.sort === 'playcount' && formData.includeAllUsersPlayCount
+      ? 'playcountallusers'
+      : formData.sort
+
   const expressions = [
     ...buildRangeExpressions('duration', formData.minDuration, formData.maxDuration),
-    ...buildRangeExpressions('playcount', formData.minPlayCount, formData.maxPlayCount),
+    ...buildRangeExpressions(playCountField, formData.minPlayCount, formData.maxPlayCount),
   ]
 
   if (formData.artist) {
@@ -93,8 +132,8 @@ export const buildSmartCriteria = (formData) => {
     all: expressions,
   }
 
-  if (formData.sort) {
-    criteria.sort = formData.sort
+  if (sortField) {
+    criteria.sort = sortField
   }
   if (formData.order) {
     criteria.order = formData.order
@@ -113,6 +152,7 @@ export const stripSmartFormFields = (data) => {
     maxDuration,
     minPlayCount,
     maxPlayCount,
+    includeAllUsersPlayCount,
     artist,
     album,
     genre,
@@ -128,6 +168,7 @@ export const stripSmartFormFields = (data) => {
     maxDuration,
     minPlayCount,
     maxPlayCount,
+    includeAllUsersPlayCount,
     artist,
     album,
     genre,
