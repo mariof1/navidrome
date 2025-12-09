@@ -41,6 +41,18 @@ describe('parseCriteriaToForm', () => {
     expect(form.includeGenres).toEqual(['Rock'])
     expect(form.excludeGenres).toEqual(['Metal'])
   })
+
+  it('flattens nested conjunctions when extracting strings', () => {
+    const form = parseCriteriaToForm({
+      all: [
+        { any: [{ contains: { artist: 'Artist 1' } }, { contains: { artist: 'Artist 2' } }] },
+        { all: [{ contains: { genre: 'Rock' } }] },
+      ],
+    })
+
+    expect(form.includeArtists).toEqual(['Artist 1', 'Artist 2'])
+    expect(form.includeGenres).toEqual(['Rock'])
+  })
 })
 
 describe('buildSmartCriteria', () => {
@@ -67,13 +79,33 @@ describe('buildSmartCriteria', () => {
 
     expect(criteria.all).toEqual(
       expect.arrayContaining([
-        { contains: { artist: 'Artist 1' } },
-        { contains: { artist: 'Artist 2' } },
+        {
+          any: [
+            { contains: { artist: 'Artist 1' } },
+            { contains: { artist: 'Artist 2' } },
+          ],
+        },
         { notContains: { album: 'Album 1' } },
         { contains: { genre: 'Rock' } },
         { notContains: { genre: 'Metal' } },
       ])
     )
+  })
+
+  it('groups included strings into OR expressions', () => {
+    const criteria = buildSmartCriteria({
+      smart: true,
+      includeGenres: ['Rock', 'Metal'],
+    })
+
+    expect(criteria.all).toEqual([
+      {
+        any: [
+          { contains: { genre: 'Rock' } },
+          { contains: { genre: 'Metal' } },
+        ],
+      },
+    ])
   })
 })
 

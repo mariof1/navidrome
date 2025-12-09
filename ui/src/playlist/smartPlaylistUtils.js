@@ -1,3 +1,14 @@
+const flattenRules = (rules = []) =>
+  rules.flatMap((rule) => {
+    if (rule.all) {
+      return flattenRules(rule.all)
+    }
+    if (rule.any) {
+      return flattenRules(rule.any)
+    }
+    return [rule]
+  })
+
 const extractRange = (rules = [], fields) => {
   let min
   let max
@@ -46,7 +57,7 @@ const extractSort = (sort) => {
 }
 
 const extractStrings = (rules = [], field, operator = 'contains') =>
-  rules
+  flattenRules(rules)
     .filter((rule) => rule[operator] && rule[operator][field])
     .map((rule) => rule[operator][field])
 
@@ -99,6 +110,20 @@ const normalizeStrings = (value) => {
   return normalized ? [normalized] : []
 }
 
+const addOrStringExpressions = (expressions, values, operator, field) => {
+  const normalized = normalizeStrings(values)
+  if (normalized.length === 0) {
+    return
+  }
+  if (normalized.length === 1) {
+    expressions.push({ [operator]: { [field]: normalized[0] } })
+    return
+  }
+  expressions.push({
+    any: normalized.map((value) => ({ [operator]: { [field]: value } })),
+  })
+}
+
 const addStringExpressions = (expressions, values, operator, field) => {
   normalizeStrings(values).forEach((value) => {
     expressions.push({ [operator]: { [field]: value } })
@@ -139,11 +164,11 @@ export const buildSmartCriteria = (formData) => {
     ...buildRangeExpressions(playCountField, formData.minPlayCount, formData.maxPlayCount),
   ]
 
-  addStringExpressions(expressions, formData.includeArtists, 'contains', 'artist')
+  addOrStringExpressions(expressions, formData.includeArtists, 'contains', 'artist')
   addStringExpressions(expressions, formData.excludeArtists, 'notContains', 'artist')
-  addStringExpressions(expressions, formData.includeAlbums, 'contains', 'album')
+  addOrStringExpressions(expressions, formData.includeAlbums, 'contains', 'album')
   addStringExpressions(expressions, formData.excludeAlbums, 'notContains', 'album')
-  addStringExpressions(expressions, formData.includeGenres, 'contains', 'genre')
+  addOrStringExpressions(expressions, formData.includeGenres, 'contains', 'genre')
   addStringExpressions(expressions, formData.excludeGenres, 'notContains', 'genre')
 
   if (expressions.length === 0) {
