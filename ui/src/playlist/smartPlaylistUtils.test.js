@@ -64,8 +64,30 @@ describe('buildSmartCriteria', () => {
       sort: 'playcount',
     })
 
-    expect(criteria.all[0]).toEqual({ gt: { playcountallusers: 5 } })
+    expect(criteria.all[0]).toEqual({ inTheRange: { playcountallusers: [5, Number.MAX_SAFE_INTEGER] } })
     expect(criteria.sort).toBe('playcountallusers')
+  })
+
+  it('creates inclusive ranges for playcount bounds', () => {
+    const criteria = buildSmartCriteria({
+      smart: true,
+      maxPlayCount: 0,
+    })
+
+    expect(criteria.all[0]).toEqual({ inTheRange: { playcount: [Number.MIN_SAFE_INTEGER, 0] } })
+  })
+
+  it('targets never-played tracks when only the minimum playcount is zero', () => {
+    const criteria = buildSmartCriteria({
+      smart: true,
+      minPlayCount: 0,
+      sort: 'random',
+      trackLimit: 100,
+    })
+
+    expect(criteria.all[0]).toEqual({ inTheRange: { playcount: [0, 0] } })
+    expect(criteria.sort).toBe('random')
+    expect(criteria.limit).toBe(100)
   })
 
   it('builds include and exclude expressions', () => {

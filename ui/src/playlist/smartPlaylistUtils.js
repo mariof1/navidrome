@@ -1,3 +1,6 @@
+const RANGE_MIN = Number.MIN_SAFE_INTEGER
+const RANGE_MAX = Number.MAX_SAFE_INTEGER
+
 const flattenRules = (rules = []) =>
   rules.flatMap((rule) => {
     if (rule.all) {
@@ -9,6 +12,9 @@ const flattenRules = (rules = []) =>
     return [rule]
   })
 
+const normalizeRangeValue = (value, bound) =>
+  value === bound ? undefined : value
+
 const extractRange = (rules = [], fields) => {
   let min
   let max
@@ -18,8 +24,8 @@ const extractRange = (rules = [], fields) => {
       for (const field of fieldsArray) {
         if (rule.inTheRange[field]) {
           const [rMin, rMax] = rule.inTheRange[field]
-          min = rMin
-          max = rMax
+          min = normalizeRangeValue(rMin, RANGE_MIN)
+          max = normalizeRangeValue(rMax, RANGE_MAX)
           return
         }
       }
@@ -134,16 +140,34 @@ const buildRangeExpressions = (field, min, max) => {
   if (min === undefined && max === undefined) {
     return []
   }
-  if (min !== undefined && min !== null && min !== '' && max !== undefined && max !== null && max !== '') {
-    return [{ inTheRange: { [field]: [Number(min), Number(max)] } }]
+  const hasMin = min !== undefined && min !== null && min !== ''
+  const hasMax = max !== undefined && max !== null && max !== ''
+
+  if (hasMin || hasMax) {
+    return [
+      {
+        inTheRange: {
+          [field]: [
+            hasMin ? Number(min) : RANGE_MIN,
+            hasMax ? Number(max) : RANGE_MAX,
+          ],
+        },
+      },
+    ]
   }
-  if (min !== undefined && min !== null && min !== '') {
-    return [{ gt: { [field]: Number(min) } }]
-  }
-  if (max !== undefined && max !== null && max !== '') {
-    return [{ lt: { [field]: Number(max) } }]
-  }
+
   return []
+}
+
+const normalizePlayCountBounds = (min, max) => {
+  const hasMax = max !== undefined && max !== null && max !== ''
+  const numericMin = Number(min)
+
+  if (numericMin === 0 && !hasMax) {
+    return { min: 0, max: 0 }
+  }
+
+  return { min, max }
 }
 
 export const buildSmartCriteria = (formData) => {
@@ -159,9 +183,14 @@ export const buildSmartCriteria = (formData) => {
       ? 'playcountallusers'
       : formData.sort
 
+  const { min: normalizedMinPlayCount, max: normalizedMaxPlayCount } =
+    playCountField === 'playcount'
+      ? normalizePlayCountBounds(formData.minPlayCount, formData.maxPlayCount)
+      : { min: formData.minPlayCount, max: formData.maxPlayCount }
+
   const expressions = [
     ...buildRangeExpressions('duration', formData.minDuration, formData.maxDuration),
-    ...buildRangeExpressions(playCountField, formData.minPlayCount, formData.maxPlayCount),
+    ...buildRangeExpressions(playCountField, normalizedMinPlayCount, normalizedMaxPlayCount),
   ]
 
   addOrStringExpressions(expressions, formData.includeArtists, 'contains', 'artist')
