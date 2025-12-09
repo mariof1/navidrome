@@ -244,9 +244,9 @@ func (r *playlistRepository) refreshSmartPlaylist(pls *model.Playlist) bool {
 		return false
 	}
 
-	// Never refresh other users' playlists
 	usr := loggedUser(r.ctx)
-	if pls.OwnerID != usr.ID {
+	if !usr.IsAdmin && pls.OwnerID != usr.ID {
+		// Never refresh other users' playlists unless admin
 		log.Trace(r.ctx, "Not refreshing smart playlist from other user", "playlist", pls.Name, "id", pls.ID)
 		return false
 	}
@@ -453,7 +453,10 @@ func (r *playlistRepository) NewInstance() interface{} {
 
 func (r *playlistRepository) Save(entity interface{}) (string, error) {
 	pls := entity.(*model.Playlist)
-	pls.OwnerID = loggedUser(r.ctx).ID
+	usr := loggedUser(r.ctx)
+	if pls.OwnerID == "" || !usr.IsAdmin {
+		pls.OwnerID = usr.ID
+	}
 	pls.ID = "" // Make sure we don't override an existing playlist
 	err := r.Put(pls)
 	if err != nil {

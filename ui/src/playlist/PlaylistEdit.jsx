@@ -10,8 +10,11 @@ import {
   usePermissions,
   ReferenceInput,
   SelectInput,
+  useRecordContext,
 } from 'react-admin'
 import { isWritable, Title } from '../common'
+import SmartPlaylistFields from './SmartPlaylistFields'
+import { buildPlaylistPayload, parseCriteriaToForm } from './smartPlaylistUtils'
 
 const SyncFragment = ({ formData, variant, ...rest }) => {
   return (
@@ -29,10 +32,17 @@ const PlaylistTitle = ({ record }) => {
 }
 
 const PlaylistEditForm = (props) => {
-  const { record } = props
+  const record = useRecordContext()
   const { permissions } = usePermissions()
+  const smartDefaults = parseCriteriaToForm(record?.rules)
   return (
-    <SimpleForm redirect="list" variant={'outlined'} {...props}>
+    <SimpleForm
+      redirect="list"
+      variant={'outlined'}
+      {...props}
+      initialValues={{ smart: !!record?.rules, ...smartDefaults }}
+      transform={buildPlaylistPayload}
+    >
       <TextInput source="name" validate={required()} />
       <TextInput multiline source="comment" />
       {permissions === 'admin' ? (
@@ -50,7 +60,8 @@ const PlaylistEditForm = (props) => {
       ) : (
         <TextField source="ownerName" />
       )}
-      <BooleanInput source="public" disabled={!isWritable(record.ownerId)} />
+      <BooleanInput source="public" disabled={!isWritable(record?.ownerId)} />
+      <SmartPlaylistFields />
       <FormDataConsumer>
         {(formDataProps) => <SyncFragment {...formDataProps} />}
       </FormDataConsumer>
