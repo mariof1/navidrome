@@ -1,14 +1,7 @@
 import React from 'react'
 import { Grid, Typography } from '@material-ui/core'
-import {
-  AutocompleteArrayInput,
-  BooleanInput,
-  FormDataConsumer,
-  NumberInput,
-  ReferenceArrayInput,
-  SelectInput,
-  useTranslate,
-} from 'react-admin'
+import { BooleanInput, FormDataConsumer, NumberInput, SelectInput, useTranslate } from 'react-admin'
+import SmartCriteriaAutocompleteArrayInput from './SmartCriteriaAutocompleteArrayInput'
 
 const orderChoices = [
   { id: 'asc', name: 'resources.playlist.smart.order.asc' },
@@ -35,7 +28,7 @@ const SmartPlaylistFields = () => {
       <FormDataConsumer>
         {({ formData }) =>
           formData.smart && (
-            <Grid container spacing={2}>
+            <Grid container spacing={3}>
               <Grid item xs={12}>
                 <Typography variant="subtitle2" color="textSecondary">
                   {translate('resources.playlist.smart.sections.criteria')}
@@ -47,6 +40,7 @@ const SmartPlaylistFields = () => {
                   source="minDuration"
                   label={translate('resources.playlist.smart.fields.minDuration')}
                   helperText={translate('resources.playlist.smart.help.duration')}
+                  fullWidth
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
@@ -54,6 +48,7 @@ const SmartPlaylistFields = () => {
                   source="maxDuration"
                   label={translate('resources.playlist.smart.fields.maxDuration')}
                   helperText={translate('resources.playlist.smart.help.duration')}
+                  fullWidth
                 />
               </Grid>
 
@@ -61,12 +56,14 @@ const SmartPlaylistFields = () => {
                 <NumberInput
                   source="minPlayCount"
                   label={translate('resources.playlist.smart.fields.minPlayCount')}
+                  fullWidth
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <NumberInput
                   source="maxPlayCount"
                   label={translate('resources.playlist.smart.fields.maxPlayCount')}
+                  fullWidth
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
@@ -77,78 +74,48 @@ const SmartPlaylistFields = () => {
               </Grid>
 
               <Grid item xs={12} sm={6} md={4}>
-                <ReferenceArrayInput
+                <SmartCriteriaAutocompleteArrayInput
+                  reference="artist"
                   source="includeArtists"
-                  reference="artist"
-                  sort={{ field: 'name', order: 'ASC' }}
-                  filterToQuery={(searchText) => ({ name: [searchText] })}
-                  perPage={0}
                   label="resources.playlist.smart.fields.includeArtist"
-                >
-                  <AutocompleteArrayInput optionText="name" optionValue="name" />
-                </ReferenceArrayInput>
+                />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <ReferenceArrayInput
-                  source="excludeArtists"
+                <SmartCriteriaAutocompleteArrayInput
                   reference="artist"
-                  sort={{ field: 'name', order: 'ASC' }}
-                  filterToQuery={(searchText) => ({ name: [searchText] })}
-                  perPage={0}
+                  source="excludeArtists"
                   label="resources.playlist.smart.fields.excludeArtist"
-                >
-                  <AutocompleteArrayInput optionText="name" optionValue="name" />
-                </ReferenceArrayInput>
+                />
               </Grid>
 
               <Grid item xs={12} sm={6} md={4}>
-                <ReferenceArrayInput
+                <SmartCriteriaAutocompleteArrayInput
+                  reference="album"
                   source="includeAlbums"
-                  reference="album"
-                  sort={{ field: 'name', order: 'ASC' }}
-                  filterToQuery={(searchText) => ({ name: [searchText] })}
-                  perPage={0}
                   label="resources.playlist.smart.fields.includeAlbum"
-                >
-                  <AutocompleteArrayInput optionText="name" optionValue="name" />
-                </ReferenceArrayInput>
+                />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <ReferenceArrayInput
-                  source="excludeAlbums"
+                <SmartCriteriaAutocompleteArrayInput
                   reference="album"
-                  sort={{ field: 'name', order: 'ASC' }}
-                  filterToQuery={(searchText) => ({ name: [searchText] })}
-                  perPage={0}
+                  source="excludeAlbums"
                   label="resources.playlist.smart.fields.excludeAlbum"
-                >
-                  <AutocompleteArrayInput optionText="name" optionValue="name" />
-                </ReferenceArrayInput>
+                />
               </Grid>
 
               <Grid item xs={12} sm={6} md={4}>
-                <ReferenceArrayInput
-                  source="includeGenres"
+                <SmartCriteriaAutocompleteArrayInput
                   reference="genre"
-                  sort={{ field: 'name', order: 'ASC' }}
-                  filterToQuery={(searchText) => ({ name: [searchText] })}
-                  perPage={0}
+                  source="includeGenres"
                   label="resources.playlist.smart.fields.includeGenre"
-                >
-                  <AutocompleteArrayInput optionText="name" optionValue="name" />
-                </ReferenceArrayInput>
+                />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <ReferenceArrayInput
-                  source="excludeGenres"
+                <SmartCriteriaAutocompleteArrayInput
                   reference="genre"
-                  sort={{ field: 'name', order: 'ASC' }}
-                  filterToQuery={(searchText) => ({ name: [searchText] })}
-                  perPage={0}
+                  source="excludeGenres"
                   label="resources.playlist.smart.fields.excludeGenre"
-                >
-                  <AutocompleteArrayInput optionText="name" optionValue="name" />
-                </ReferenceArrayInput>
+                />
               </Grid>
 
               <Grid item xs={12}>
@@ -161,6 +128,7 @@ const SmartPlaylistFields = () => {
                 <NumberInput
                   source="trackLimit"
                   label={translate('resources.playlist.smart.fields.limit')}
+                  fullWidth
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
@@ -173,6 +141,7 @@ const SmartPlaylistFields = () => {
                   }))}
                   emptyText={translate('resources.playlist.smart.sort.default')}
                   emptyValue=""
+                  fullWidth
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
@@ -185,6 +154,7 @@ const SmartPlaylistFields = () => {
                   }))}
                   emptyText={translate('resources.playlist.smart.order.default')}
                   emptyValue=""
+                  fullWidth
                 />
               </Grid>
             </Grid>
