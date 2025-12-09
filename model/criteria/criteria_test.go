@@ -163,6 +163,34 @@ var _ = Describe("Criteria", func() {
 				))
 			})
 		})
+
+		Context("with include and exclude tag rules", func() {
+			It("combines OR includes with AND excludes", func() {
+				AddTagNames([]string{"genre"})
+
+				crit := Criteria{
+					Expression: All{
+						Any{
+							Contains{"genre": "Dance"},
+							Contains{"genre": "Club"},
+						},
+						NotContains{"genre": "Rock"},
+						Contains{"album": "Mix"},
+					},
+				}
+
+				sql, args, err := crit.ToSql()
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+				gomega.Expect(sql).To(gomega.ContainSubstring(
+					"(exists (select 1 from json_tree(tags, '$.genre') where key='value' and value LIKE ?) OR exists (select 1 from json_tree(tags, '$.genre') where key='value' and value LIKE ?))",
+				))
+				gomega.Expect(sql).To(gomega.ContainSubstring(
+					"AND not exists (select 1 from json_tree(tags, '$.genre') where key='value' and value LIKE ?)",
+				))
+				gomega.Expect(sql).To(gomega.ContainSubstring("AND media_file.album LIKE ?"))
+				gomega.Expect(args).To(gomega.HaveExactElements("%Dance%", "%Club%", "%Rock%", "%Mix%"))
+			})
+		})
 	})
 
 	Context("with artist roles", func() {

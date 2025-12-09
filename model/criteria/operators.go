@@ -46,7 +46,7 @@ func (any Any) ChildPlaylistIds() (ids []string) {
 
 func multiValueAnd(expr map[string]any, build func(map[string]any) Expression) Expression {
 	for f, v := range expr {
-		if values := sliceValues(v); len(values) > 1 {
+		if values := sliceValues(v); len(values) > 1 && areAllStrings(values) {
 			and := make(All, 0, len(values))
 			for _, value := range values {
 				and = append(and, build(map[string]any{f: value}))
@@ -67,6 +67,20 @@ func sliceValues(v any) []any {
 		values = append(values, rv.Index(i).Interface())
 	}
 	return values
+}
+
+func areAllStrings(values []any) bool {
+	if len(values) == 0 {
+		return false
+	}
+
+	for _, v := range values {
+		if _, ok := v.(string); !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 type Is squirrel.Eq
