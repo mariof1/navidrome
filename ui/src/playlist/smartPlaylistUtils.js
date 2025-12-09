@@ -43,8 +43,8 @@ export const parseCriteriaToForm = (criteria) => {
     artist: extractString(rules, 'artist'),
     album: extractString(rules, 'album'),
     genre: extractString(rules, 'genre'),
-    sort: criteria.sort,
-    order: criteria.order,
+    sort: criteria.sort?.toLowerCase(),
+    order: criteria.order?.toLowerCase(),
     trackLimit: criteria.limit,
   }
 }
