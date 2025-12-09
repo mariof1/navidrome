@@ -168,7 +168,7 @@ export const buildSmartCriteria = (formData) => {
   addStringExpressions(expressions, formData.excludeArtists, 'notContains', 'artist')
   addOrStringExpressions(expressions, formData.includeAlbums, 'contains', 'album')
   addStringExpressions(expressions, formData.excludeAlbums, 'notContains', 'album')
-  addOrStringExpressions(expressions, formData.includeGenres, 'contains', 'genre')
+  addStringExpressions(expressions, formData.includeGenres, 'contains', 'genre')
   addStringExpressions(expressions, formData.excludeGenres, 'notContains', 'genre')
 
   if (expressions.length === 0) {
