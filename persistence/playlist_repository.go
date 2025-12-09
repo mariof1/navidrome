@@ -156,12 +156,15 @@ func (r *playlistRepository) GetWithTracks(id string, refreshSmartPlaylist, incl
 	if refreshSmartPlaylist {
 		r.refreshSmartPlaylist(pls)
 	}
-	tracks, err := r.loadTracks(Select().From("playlist_tracks").
-		Where(Eq{"missing": false}).
-		OrderBy("playlist_tracks.id"), id)
-	if err != nil {
-		log.Error(r.ctx, "Error loading playlist tracks ", "playlist", pls.Name, "id", pls.ID, err)
-		return nil, err
+        tracksQuery := Select().From("playlist_tracks").OrderBy("playlist_tracks.id")
+        if !includeMissing {
+                tracksQuery = tracksQuery.Where(Eq{"missing": false})
+        }
+
+        tracks, err := r.loadTracks(tracksQuery, id)
+        if err != nil {
+                log.Error(r.ctx, "Error loading playlist tracks ", "playlist", pls.Name, "id", pls.ID, err)
+                return nil, err
 	}
 	pls.SetTracks(tracks)
 	return pls, nil
