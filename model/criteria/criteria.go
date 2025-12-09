@@ -88,6 +88,11 @@ func (c Criteria) OrderBy() string {
 		fields = append(fields, mapped+" "+dir)
 	}
 
+	if len(fields) == 0 {
+		log.Warn("No valid fields in 'sort' field, using default", "sort", c.Sort)
+		return fieldMap["title"].field + " asc"
+	}
+
 	return strings.Join(fields, ", ")
 }
 
