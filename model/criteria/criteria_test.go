@@ -155,6 +155,13 @@ var _ = Describe("Criteria", func() {
 					"media_file.title asc",
 				))
 			})
+
+			It("falls back to default sort when all fields are invalid", func() {
+				goObj.Sort = "bogus"
+				gomega.Expect(goObj.OrderBy()).To(gomega.Equal(
+					"media_file.title asc",
+				))
+			})
 		})
 	})
 
