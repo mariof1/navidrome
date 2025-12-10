@@ -15,6 +15,7 @@ import (
 	"github.com/navidrome/navidrome/core/external"
 	"github.com/navidrome/navidrome/core/metrics"
 	"github.com/navidrome/navidrome/core/playback"
+	"github.com/navidrome/navidrome/core/podcast"
 	"github.com/navidrome/navidrome/core/scrobbler"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
@@ -38,6 +39,7 @@ type Router struct {
 	players   core.Players
 	provider  external.Provider
 	playlists core.Playlists
+	podcasts  *podcast.Service
 	scanner   model.Scanner
 	broker    events.Broker
 	scrobbler scrobbler.PlayTracker
@@ -48,7 +50,7 @@ type Router struct {
 
 func New(ds model.DataStore, artwork artwork.Artwork, streamer core.MediaStreamer, archiver core.Archiver,
 	players core.Players, provider external.Provider, scanner model.Scanner, broker events.Broker,
-	playlists core.Playlists, scrobbler scrobbler.PlayTracker, share core.Share, playback playback.PlaybackServer,
+	playlists core.Playlists, podcasts *podcast.Service, scrobbler scrobbler.PlayTracker, share core.Share, playback playback.PlaybackServer,
 	metrics metrics.Metrics,
 ) *Router {
 	r := &Router{
@@ -59,6 +61,7 @@ func New(ds model.DataStore, artwork artwork.Artwork, streamer core.MediaStreame
 		players:   players,
 		provider:  provider,
 		playlists: playlists,
+		podcasts:  podcasts,
 		scanner:   scanner,
 		broker:    broker,
 		scrobbler: scrobbler,
@@ -153,6 +156,13 @@ func (api *Router) routes() http.Handler {
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(getPlayer(api.players))
+			h(r, "getPodcasts", api.GetPodcasts)
+			h(r, "getNewestPodcasts", api.GetNewestPodcasts)
+			h(r, "refreshPodcasts", api.RefreshPodcasts)
+			hr(r, "downloadPodcastEpisode", api.DownloadPodcastEpisode)
+		})
+		r.Group(func(r chi.Router) {
+			r.Use(getPlayer(api.players))
 			h(r, "search2", api.Search2)
 			h(r, "search3", api.Search3)
 		})
@@ -214,8 +224,7 @@ func (api *Router) routes() http.Handler {
 		}
 
 		// Not Implemented (yet?)
-		h501(r, "getPodcasts", "getNewestPodcasts", "refreshPodcasts", "createPodcastChannel", "deletePodcastChannel",
-			"deletePodcastEpisode", "downloadPodcastEpisode")
+		h501(r, "createPodcastChannel", "deletePodcastChannel", "deletePodcastEpisode")
 		h501(r, "createUser", "updateUser", "deleteUser", "changePassword")
 
 		// Deprecated/Won't implement/Out of scope endpoints

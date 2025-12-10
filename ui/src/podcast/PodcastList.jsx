@@ -13,45 +13,84 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
   Grid,
   IconButton,
-  makeStyles,
-  TextField,
   Toolbar,
+  Tooltip,
   Typography,
-  Checkbox,
 } from '@material-ui/core'
 import AddIcon from '@material-ui/icons/Add'
+import DeleteIcon from '@material-ui/icons/Delete'
+import EditIcon from '@material-ui/icons/Edit'
 import RefreshIcon from '@material-ui/icons/Refresh'
-import RssFeedIcon from '@material-ui/icons/RssFeed'
-import { Title, useNotify, usePermissions, useRedirect, useTranslate } from 'react-admin'
-import { createPodcastChannel, listPodcasts } from './api'
+import {
+  Title,
+  useGetIdentity,
+  useNotify,
+  usePermissions,
+  useRedirect,
+  useTranslate,
+} from 'react-admin'
+import { makeStyles } from '@material-ui/core/styles'
+import PodcastFormDialog from './PodcastFormDialog'
+import HtmlDescription from './HtmlDescription'
+import {
+  createPodcastChannel,
+  deletePodcastChannel,
+  listPodcasts,
+  updatePodcastChannel,
+} from './api'
 
 const useStyles = makeStyles((theme) => ({
   root: {
     marginTop: theme.spacing(2),
+    maxWidth: '100%',
+    overflowX: 'hidden',
   },
   toolbar: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  content: {
+    maxWidth: '100%',
+    overflowX: 'hidden',
+  },
+  card: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+  },
+  cardActionArea: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    height: '100%',
+  },
   media: {
-    height: 140,
+    height: 160,
     backgroundSize: 'cover',
     backgroundColor: theme.palette.action.hover,
+    width: '100%',
   },
   cardContent: {
     display: 'flex',
     flexDirection: 'column',
     gap: theme.spacing(1),
-    minHeight: 160,
+    flexGrow: 1,
+    overflow: 'hidden',
+  },
+  description: {
+    color: theme.palette.text.secondary,
   },
   chips: {
     display: 'flex',
     gap: theme.spacing(1),
     flexWrap: 'wrap',
+  },
+  actions: {
+    display: 'flex',
+    gap: theme.spacing(1),
   },
   addButton: {
     marginLeft: theme.spacing(1),
@@ -64,13 +103,19 @@ const PodcastList = () => {
   const translate = useTranslate()
   const redirect = useRedirect()
   const { permissions } = usePermissions()
+  const { identity } = useGetIdentity()
   const isAdmin = permissions === 'admin'
   const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
-  const [addDialogOpen, setAddDialogOpen] = useState(false)
-  const [rssUrl, setRssUrl] = useState('')
-  const [isGlobal, setIsGlobal] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingChannel, setEditingChannel] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+
+  const canManageChannel = useCallback(
+    (channel) => isAdmin || channel?.userId === identity?.id,
+    [identity?.id, isAdmin],
+  )
 
   const loadChannels = useCallback(async () => {
     setLoading(true)
@@ -91,14 +136,18 @@ const PodcastList = () => {
     loadChannels()
   }, [loadChannels])
 
-  const handleCreate = async () => {
+  const handleSave = async ({ rssUrl, isGlobal }) => {
     setSaving(true)
     try {
-      await createPodcastChannel({ rssUrl, isGlobal })
-      notify('resources.podcast.notifications.created', { type: 'info' })
-      setAddDialogOpen(false)
-      setRssUrl('')
-      setIsGlobal(false)
+      if (editingChannel) {
+        await updatePodcastChannel(editingChannel.id, { rssUrl, isGlobal })
+        notify('ra.notification.updated', { type: 'info' })
+      } else {
+        await createPodcastChannel({ rssUrl, isGlobal })
+        notify('resources.podcast.notifications.created', { type: 'info' })
+      }
+      setDialogOpen(false)
+      setEditingChannel(null)
       loadChannels()
     } catch (err) {
       notify(
@@ -107,6 +156,24 @@ const PodcastList = () => {
       )
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setSaving(true)
+    try {
+      await deletePodcastChannel(deleteTarget.id)
+      notify('ra.notification.deleted', { type: 'info' })
+      loadChannels()
+    } catch (err) {
+      notify(
+        err?.message || translate('resources.podcast.notifications.loadError'),
+        { type: 'warning' },
+      )
+    } finally {
+      setSaving(false)
+      setDeleteTarget(null)
     }
   }
 
@@ -135,57 +202,93 @@ const PodcastList = () => {
 
     return (
       <Grid container spacing={2}>
-        {channels.map((channel) => (
-          <Grid item xs={12} sm={6} md={4} key={channel.id}>
-            <Card>
-              <CardActionArea onClick={() => handleCardClick(channel.id)}>
-                <CardHeader
-                  title={channel.title}
-                  subheader={channel.siteUrl || ''}
-                  titleTypographyProps={{ variant: 'h6' }}
-                />
-                <CardMedia
-                  className={classes.media}
-                  image={channel.imageUrl || ''}
-                  title={channel.title}
-                />
-                <CardContent className={classes.cardContent}>
-                  {channel.description && (
-                    <Typography variant="body2" color="textSecondary" noWrap>
-                      {channel.description}
-                    </Typography>
-                  )}
-                  <div className={classes.chips}>
-                    {channel.isGlobal && (
-                      <Chip
-                        color="primary"
-                        size="small"
-                        label={translate('resources.podcast.labels.shared')}
-                      />
-                    )}
-                    {channel.lastRefreshedAt && (
-                      <Chip
-                        size="small"
-                        label={`${translate('resources.podcast.fields.lastRefreshedAt')}: ${new Date(
-                          channel.lastRefreshedAt,
-                        ).toLocaleString()}`}
-                      />
-                    )}
-                    {channel.episodeCount ? (
-                      <Chip
-                        size="small"
-                        label={`${translate('resources.podcast.fields.episodeCount')}: ${channel.episodeCount}`}
-                      />
-                    ) : null}
-                  </div>
-                </CardContent>
-              </CardActionArea>
-            </Card>
-          </Grid>
-        ))}
+        {channels.map((channel) => {
+          const canManage = canManageChannel(channel)
+
+          return (
+            <Grid item xs={12} sm={6} md={4} key={channel.id}>
+              <Card className={classes.card}>
+                <CardActionArea
+                  onClick={() => handleCardClick(channel.id)}
+                  className={classes.cardActionArea}
+                >
+                  <CardHeader
+                    title={channel.title}
+                    subheader={channel.siteUrl || ''}
+                    titleTypographyProps={{ variant: 'h6' }}
+                    subheaderTypographyProps={{ style: { wordBreak: 'break-word' } }}
+                    action={
+                      canManage && (
+                        <div className={classes.actions}>
+                          <Tooltip title={translate('ra.action.edit')}>
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditingChannel(channel)
+                                setDialogOpen(true)
+                              }}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title={translate('ra.action.delete')}>
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setDeleteTarget(channel)
+                              }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </div>
+                      )
+                    }
+                  />
+                  <CardMedia
+                    className={classes.media}
+                    image={channel.imageUrl || ''}
+                    title={channel.title}
+                  />
+                  <CardContent className={classes.cardContent}>
+                    <HtmlDescription
+                      value={channel.description}
+                      className={classes.description}
+                    />
+                    <div className={classes.chips}>
+                      {channel.isGlobal && (
+                        <Chip
+                          color="primary"
+                          size="small"
+                          label={translate('resources.podcast.labels.shared')}
+                        />
+                      )}
+                      {channel.lastRefreshedAt && (
+                        <Chip
+                          size="small"
+                          label={`${translate('resources.podcast.fields.lastRefreshedAt')}: ${new Date(
+                            channel.lastRefreshedAt,
+                          ).toLocaleString()}`}
+                        />
+                      )}
+                      {channel.episodeCount ? (
+                        <Chip
+                          size="small"
+                          label={`${translate('resources.podcast.fields.episodeCount')}: ${channel.episodeCount}`}
+                        />
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            </Grid>
+          )
+        })}
       </Grid>
     )
-  }, [channels, classes.cardContent, classes.chips, classes.media, loading, translate])
+  }, [canManageChannel, channels, classes, handleCardClick, loading, translate])
 
   return (
     <Card className={classes.root}>
@@ -202,55 +305,57 @@ const PodcastList = () => {
             color="primary"
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setAddDialogOpen(true)}
+            onClick={() => {
+              setEditingChannel(null)
+              setDialogOpen(true)
+            }}
             className={classes.addButton}
           >
             {translate('resources.podcast.actions.add')}
           </Button>
         </div>
       </Toolbar>
-      <Box p={2}>{content}</Box>
+      <Box p={2} className={classes.content}>
+        {content}
+      </Box>
 
-      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>{translate('resources.podcast.actions.add')}</DialogTitle>
+      <PodcastFormDialog
+        open={dialogOpen}
+        title={
+          editingChannel
+            ? translate('ra.action.edit')
+            : translate('resources.podcast.actions.add')
+        }
+        initialValue={{
+          rssUrl: editingChannel?.rssUrl || '',
+          isGlobal: editingChannel?.isGlobal || false,
+        }}
+        allowGlobal={canManageChannel(editingChannel || { userId: identity?.id })}
+        saving={saving}
+        onClose={() => {
+          setDialogOpen(false)
+          setEditingChannel(null)
+        }}
+        onSave={handleSave}
+      />
+
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} fullWidth maxWidth="xs">
+        <DialogTitle>{translate('ra.action.delete')}</DialogTitle>
         <DialogContent>
-          <TextField
-            label={translate('resources.podcast.fields.rssUrl')}
-            value={rssUrl}
-            fullWidth
-            onChange={(e) => setRssUrl(e.target.value)}
-            margin="normal"
-            autoFocus
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                color="primary"
-                checked={isGlobal}
-                onChange={(e) => setIsGlobal(e.target.checked)}
-                disabled={!isAdmin}
-              />
-            }
-            label={translate('resources.podcast.fields.isGlobal')}
-          />
-          {!isAdmin && (
-            <Typography variant="caption" color="textSecondary">
-              {translate('resources.podcast.messages.adminOnly')}
-            </Typography>
-          )}
+          <Typography>{translate('ra.message.are_you_sure')}</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddDialogOpen(false)} color="default">
+          <Button onClick={() => setDeleteTarget(null)} color="default">
             {translate('ra.action.cancel')}
           </Button>
           <Button
-            onClick={handleCreate}
-            color="primary"
+            onClick={handleDelete}
+            color="secondary"
             variant="contained"
-            startIcon={<RssFeedIcon />}
-            disabled={!rssUrl || saving}
+            startIcon={<DeleteIcon />}
+            disabled={saving}
           >
-            {translate('resources.podcast.actions.save')}
+            {translate('ra.action.delete')}
           </Button>
         </DialogActions>
       </Dialog>

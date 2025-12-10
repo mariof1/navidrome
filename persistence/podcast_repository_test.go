@@ -58,4 +58,20 @@ var _ = Describe("PodcastRepository", func() {
 		Expect(savedEpisodes).To(HaveLen(1))
 		Expect(savedEpisodes[0].GUID).To(Equal("guid-1"))
 	})
+
+	It("saves long UTF-8 descriptions", func() {
+		description := "Lemoniada i ciasto.\nDrugi wiersz z HTML <strong>znacznikami</strong> oraz polskie znaki: ąśćłóżź."
+		channel := model.PodcastChannel{
+			Title:       "Opis",
+			RSSURL:      "https://example.com/utf8",
+			Description: description,
+			UserID:      "userid",
+		}
+
+		Expect(repo.CreateChannel(&channel)).To(Succeed())
+
+		saved, err := repo.GetChannel(channel.ID)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(saved.Description).To(Equal(description))
+	})
 })

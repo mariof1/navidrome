@@ -95,6 +95,52 @@ func (s *Service) AddChannel(ctx context.Context, url string, owner *model.User,
 	return channel, nil
 }
 
+func (s *Service) UpdateChannel(ctx context.Context, channelID string, url string, isGlobal bool) (*model.PodcastChannel, error) {
+	channel, err := s.repo.GetChannel(channelID)
+	if err != nil {
+		return nil, err
+	}
+
+	url = strings.TrimSpace(url)
+	if url == "" {
+		url = channel.RSSURL
+	}
+
+	channel.IsGlobal = isGlobal
+
+	var episodes model.PodcastEpisodes
+	if url != channel.RSSURL {
+		feed, err := s.fetchFeed(ctx, url)
+		if err != nil {
+			return nil, fmt.Errorf("fetch feed %q: %w", url, err)
+		}
+		now := time.Now()
+		channel.LastRefreshedAt = &now
+		channel.LastError = ""
+		channel.RSSURL = url
+		channel.Title = feed.Title
+		channel.Description = feed.Description
+		channel.SiteURL = feed.Link
+		if feed.ImageURL != "" {
+			channel.ImageURL = feed.ImageURL
+		}
+		episodes = s.mapEpisodes(channel, feed)
+	}
+
+	if err := s.repo.UpdateChannel(channel); err != nil {
+		return nil, err
+	}
+
+	if episodes != nil {
+		if err := s.repo.SaveEpisodes(channel.ID, episodes); err != nil {
+			return nil, fmt.Errorf("save episodes for %q: %w", url, err)
+		}
+		channel.Episodes = episodes
+	}
+
+	return channel, nil
+}
+
 func (s *Service) RefreshChannel(ctx context.Context, channelID string) error {
 	channel, err := s.repo.GetChannel(channelID)
 	if err != nil {
