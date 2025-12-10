@@ -12,16 +12,15 @@ import (
 
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
-	"github.com/navidrome/navidrome/persistence"
 )
 
 type Service struct {
-	repo            persistence.PodcastRepository
+	repo            model.PodcastRepository
 	refreshInterval time.Duration
 	httpClient      *http.Client
 }
 
-func NewService(repo persistence.PodcastRepository) *Service {
+func NewService(repo model.PodcastRepository) *Service {
 	return &Service{repo: repo, refreshInterval: time.Hour, httpClient: http.DefaultClient}
 }
 
