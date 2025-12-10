@@ -16,16 +16,16 @@ func upAddPodcasts(ctx context.Context, tx *sql.Tx) error {
 
 	tasks := []execFunc{
 		exec(`CREATE TABLE IF NOT EXISTS podcast_channel (
-id text primary key,
-title text,
+id varchar(255) not null primary key,
+title varchar(255) default '' not null,
 rss_url text not null,
 site_url text,
 description text,
 image_url text,
 user_id text,
-is_global bool default false,
-created_at datetime default current_timestamp,
-updated_at datetime default current_timestamp,
+is_global integer not null default 0,
+created_at datetime,
+updated_at datetime,
 last_refreshed_at datetime,
 last_error text
 );`),
