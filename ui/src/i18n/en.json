@@ -228,7 +228,9 @@
         "match": {
           "label": "Match",
           "any": "Match any selected",
-          "all": "Match all selected"
+          "all": "Match all selected",
+          "switchLabel": "Match all selected",
+          "switchHelper": "On: Match all selected. Off: Match any selected"
         },
         "sections": {
           "criteria": "Criteria",
