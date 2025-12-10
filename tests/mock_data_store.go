@@ -27,6 +27,7 @@ type MockDataStore struct {
 	MockedScrobbleBuffer model.ScrobbleBufferRepository
 	MockedScrobble       model.ScrobbleRepository
 	MockedRadio          model.RadioRepository
+	MockedPodcast        model.PodcastRepository
 	scrobbleBufferMu     sync.Mutex
 	repoMu               sync.Mutex
 
@@ -189,6 +190,17 @@ func (db *MockDataStore) Transcoding(ctx context.Context) model.TranscodingRepos
 		}
 	}
 	return db.MockedTranscoding
+}
+
+func (db *MockDataStore) Podcast(ctx context.Context) model.PodcastRepository {
+	if db.MockedPodcast == nil {
+		if db.RealDS != nil {
+			db.MockedPodcast = db.RealDS.Podcast(ctx)
+		} else {
+			db.MockedPodcast = struct{ model.PodcastRepository }{}
+		}
+	}
+	return db.MockedPodcast
 }
 
 func (db *MockDataStore) Player(ctx context.Context) model.PlayerRepository {
