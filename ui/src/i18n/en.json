@@ -225,6 +225,11 @@
           "order": "Order",
           "limit": "Track limit"
         },
+        "match": {
+          "label": "Match",
+          "any": "Match any selected",
+          "all": "Match all selected"
+        },
         "sections": {
           "criteria": "Criteria",
           "results": "Results"
