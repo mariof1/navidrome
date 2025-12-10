@@ -19,11 +19,6 @@ const sortChoices = [
   { id: 'dateadded', name: 'resources.playlist.smart.sort.dateAdded' },
 ]
 
-const matchModeChoices = (translate) => [
-  { id: 'any', name: translate('resources.playlist.smart.match.any') },
-  { id: 'all', name: translate('resources.playlist.smart.match.all') },
-]
-
 const SmartPlaylistFields = () => {
   const translate = useTranslate()
 
@@ -90,12 +85,12 @@ const SmartPlaylistFields = () => {
                     />
                   </Grid>
                   <Grid item>
-                    <SelectInput
+                    <BooleanInput
                       source="includeArtistsMatchMode"
-                      label="resources.playlist.smart.match.label"
-                      choices={matchModeChoices(translate)}
-                      defaultValue="any"
-                      fullWidth
+                      label="resources.playlist.smart.match.switchLabel"
+                      helperText="resources.playlist.smart.match.switchHelper"
+                      format={(value) => value === 'all'}
+                      parse={(value) => (value ? 'all' : 'any')}
                     />
                   </Grid>
                 </Grid>
@@ -110,12 +105,12 @@ const SmartPlaylistFields = () => {
                     />
                   </Grid>
                   <Grid item>
-                    <SelectInput
+                    <BooleanInput
                       source="includeAlbumsMatchMode"
-                      label="resources.playlist.smart.match.label"
-                      choices={matchModeChoices(translate)}
-                      defaultValue="any"
-                      fullWidth
+                      label="resources.playlist.smart.match.switchLabel"
+                      helperText="resources.playlist.smart.match.switchHelper"
+                      format={(value) => value === 'all'}
+                      parse={(value) => (value ? 'all' : 'any')}
                     />
                   </Grid>
                 </Grid>
@@ -130,12 +125,12 @@ const SmartPlaylistFields = () => {
                     />
                   </Grid>
                   <Grid item>
-                    <SelectInput
+                    <BooleanInput
                       source="includeGenresMatchMode"
-                      label="resources.playlist.smart.match.label"
-                      choices={matchModeChoices(translate)}
-                      defaultValue="any"
-                      fullWidth
+                      label="resources.playlist.smart.match.switchLabel"
+                      helperText="resources.playlist.smart.match.switchHelper"
+                      format={(value) => value === 'all'}
+                      parse={(value) => (value ? 'all' : 'any')}
                     />
                   </Grid>
                 </Grid>
