@@ -101,14 +101,6 @@ const SmartPlaylistFields = () => {
                 </Grid>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <SmartCriteriaAutocompleteArrayInput
-                  reference="artist"
-                  source="excludeArtists"
-                  label="resources.playlist.smart.fields.excludeArtist"
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={4}>
                 <Grid container direction="column" spacing={1}>
                   <Grid item>
                     <SmartCriteriaAutocompleteArrayInput
@@ -129,14 +121,6 @@ const SmartPlaylistFields = () => {
                 </Grid>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <SmartCriteriaAutocompleteArrayInput
-                  reference="album"
-                  source="excludeAlbums"
-                  label="resources.playlist.smart.fields.excludeAlbum"
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={4}>
                 <Grid container direction="column" spacing={1}>
                   <Grid item>
                     <SmartCriteriaAutocompleteArrayInput
@@ -155,6 +139,21 @@ const SmartPlaylistFields = () => {
                     />
                   </Grid>
                 </Grid>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={4}>
+                <SmartCriteriaAutocompleteArrayInput
+                  reference="artist"
+                  source="excludeArtists"
+                  label="resources.playlist.smart.fields.excludeArtist"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <SmartCriteriaAutocompleteArrayInput
+                  reference="album"
+                  source="excludeAlbums"
+                  label="resources.playlist.smart.fields.excludeAlbum"
+                />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <SmartCriteriaAutocompleteArrayInput
