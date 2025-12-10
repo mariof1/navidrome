@@ -57,6 +57,22 @@ describe('parseCriteriaToForm', () => {
     expect(form.includeGenres).toEqual(['Rock'])
     expect(form.includeGenresMatchMode).toBe('any')
   })
+
+  it('flattens array values when parsing match-all strings', () => {
+    const form = parseCriteriaToForm({
+      all: [
+        { contains: { genre: ['Rock', 'Metal'] } },
+        { contains: { artist: ['Artist 1', 'Artist 2'] } },
+      ],
+      genresMatchMode: 'all',
+      artistsMatchMode: 'all',
+    })
+
+    expect(form.includeGenres).toEqual(['Rock', 'Metal'])
+    expect(form.includeGenresMatchMode).toBe('all')
+    expect(form.includeArtists).toEqual(['Artist 1', 'Artist 2'])
+    expect(form.includeArtistsMatchMode).toBe('all')
+  })
 })
 
 describe('buildSmartCriteria', () => {
