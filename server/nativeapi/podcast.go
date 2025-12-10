@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/navidrome/navidrome/core/podcast"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
 	"github.com/navidrome/navidrome/model/request"
@@ -89,8 +90,20 @@ func (api *Router) createPodcast() http.HandlerFunc {
 
 		channel, err := api.podcasts.AddChannel(r.Context(), payload.RSSUrl, &user, payload.IsGlobal)
 		if err != nil {
-			log.Error(r.Context(), "Error creating podcast channel", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			status := http.StatusInternalServerError
+			msg := err.Error()
+			var feedErr *podcast.FeedError
+			if errors.As(err, &feedErr) {
+				msg = feedErr.Message()
+				switch feedErr.Code() {
+				case podcast.ErrInvalidURL, podcast.ErrInvalidFeed:
+					status = http.StatusBadRequest
+				case podcast.ErrFetchFailed:
+					status = http.StatusBadGateway
+				}
+			}
+			log.Error(r.Context(), "Error creating podcast channel", "rssUrl", payload.RSSUrl, err)
+			http.Error(w, msg, status)
 			return
 		}
 
