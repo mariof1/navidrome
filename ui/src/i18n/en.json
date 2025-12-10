@@ -287,6 +287,35 @@
         "playNow": "Play Now"
       }
     },
+    "podcast": {
+      "name": "Podcast |||| Podcasts",
+      "fields": {
+        "rssUrl": "Podcast RSS URL",
+        "isGlobal": "Make available to all users",
+        "lastRefreshedAt": "Last refreshed",
+        "episodeCount": "Episodes",
+        "episodes": "Episodes"
+      },
+      "actions": {
+        "add": "Add podcast",
+        "save": "Add",
+        "visitSite": "Visit website"
+      },
+      "labels": {
+        "shared": "Shared"
+      },
+      "messages": {
+        "empty": "No podcasts yet. Add your first feed to get started!",
+        "adminOnly": "Only administrators can share podcasts with all users.",
+        "noEpisodes": "No episodes available for this podcast.",
+        "loading": "Loading podcast..."
+      },
+      "notifications": {
+        "loadError": "Could not load podcasts.",
+        "createError": "Could not add podcast.",
+        "created": "Podcast added successfully."
+      }
+    },
     "share": {
       "name": "Share |||| Shares",
       "fields": {
