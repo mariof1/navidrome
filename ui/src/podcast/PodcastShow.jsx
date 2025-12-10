@@ -141,9 +141,11 @@ const PodcastShow = () => {
 
   const handleSave = async ({ rssUrl, isGlobal }) => {
     if (!channel) return
+    const url = (rssUrl || '').trim() || channel?.rssUrl
+    if (!url) return
     setSaving(true)
     try {
-      await updatePodcastChannel(channel.id, { rssUrl, isGlobal })
+      await updatePodcastChannel(channel.id, { rssUrl: url, isGlobal })
       notify('ra.notification.updated', { type: 'info' })
       setDialogOpen(false)
       loadData()

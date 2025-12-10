@@ -2,6 +2,7 @@ package subsonic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,6 +60,21 @@ func (api *Router) Stream(w http.ResponseWriter, r *http.Request) (*responses.Su
 	maxBitRate := p.IntOr("maxBitRate", 0)
 	format, _ := p.String("format")
 	timeOffset := p.IntOr("timeOffset", 0)
+
+	if episode, err := api.ds.Podcast(ctx).GetEpisode(id); err == nil {
+		channel, err := api.ds.Podcast(ctx).GetChannel(episode.ChannelID)
+		if err != nil {
+			return nil, err
+		}
+		user, _ := request.UserFrom(ctx)
+		if !canAccessPodcast(channel, user) {
+			return nil, newError(responses.ErrorDataNotFound, "data not found")
+		}
+		http.Redirect(w, r, episode.AudioURL, http.StatusFound)
+		return nil, nil
+	} else if !errors.Is(err, model.ErrNotFound) {
+		return nil, err
+	}
 
 	stream, err := api.streamer.NewStream(ctx, id, format, maxBitRate, timeOffset)
 	if err != nil {
