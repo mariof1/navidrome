@@ -1,0 +1,205 @@
+package nativeapi
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strings"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/navidrome/navidrome/log"
+	"github.com/navidrome/navidrome/model"
+	"github.com/navidrome/navidrome/model/request"
+	"github.com/navidrome/navidrome/server"
+)
+
+type podcastChannelResponse struct {
+	*model.PodcastChannel
+	EpisodeCount int `json:"episodeCount,omitempty"`
+}
+
+type podcastCreatePayload struct {
+	RSSUrl   string `json:"rssUrl"`
+	IsGlobal bool   `json:"isGlobal"`
+}
+
+func (api *Router) addPodcastRoute(r chi.Router) {
+	r.Route("/podcast", func(r chi.Router) {
+		r.Get("/", api.listPodcasts())
+		r.Post("/", api.createPodcast())
+		r.Route("/{id}", func(r chi.Router) {
+			r.Use(server.URLParamsMiddleware)
+			r.Get("/", api.getPodcast())
+			r.Delete("/", api.deletePodcast())
+			r.Get("/episodes", api.listPodcastEpisodes())
+		})
+	})
+}
+
+func (api *Router) listPodcasts() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, _ := request.UserFrom(r.Context())
+
+		channels, err := api.podcasts.ListChannelsForUser(&user)
+		if err != nil {
+			log.Error(r.Context(), "Error listing podcast channels", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		repo := api.ds.Podcast(r.Context())
+		resp := make([]podcastChannelResponse, 0, len(channels))
+		for i := range channels {
+			episodes, err := repo.ListEpisodes(channels[i].ID)
+			if err != nil {
+				log.Error(r.Context(), "Error loading podcast episodes", "channelId", channels[i].ID, err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			resp = append(resp, podcastChannelResponse{PodcastChannel: &channels[i], EpisodeCount: len(episodes)})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			log.Error(r.Context(), "Error encoding podcast response", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
+
+func (api *Router) createPodcast() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, _ := request.UserFrom(r.Context())
+		var payload podcastCreatePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		payload.RSSUrl = strings.TrimSpace(payload.RSSUrl)
+		if payload.RSSUrl == "" {
+			http.Error(w, "rss url required", http.StatusBadRequest)
+			return
+		}
+
+		if payload.IsGlobal && !user.IsAdmin {
+			http.Error(w, "Access denied: admin privileges required", http.StatusForbidden)
+			return
+		}
+
+		channel, err := api.podcasts.AddChannel(r.Context(), payload.RSSUrl, &user, payload.IsGlobal)
+		if err != nil {
+			log.Error(r.Context(), "Error creating podcast channel", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(channel); err != nil {
+			log.Error(r.Context(), "Error encoding podcast response", err)
+		}
+	}
+}
+
+func (api *Router) getPodcast() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		user, _ := request.UserFrom(ctx)
+		id := chi.URLParam(r, "id")
+
+		channel, err := api.podcasts.LoadChannelWithEpisodes(id)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, model.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			http.Error(w, err.Error(), status)
+			return
+		}
+
+		if !canAccessPodcast(channel, user) {
+			http.Error(w, "podcast not found", http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(channel); err != nil {
+			log.Error(ctx, "Error encoding podcast response", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
+
+func (api *Router) deletePodcast() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		user, _ := request.UserFrom(ctx)
+		id := chi.URLParam(r, "id")
+		repo := api.ds.Podcast(ctx)
+
+		channel, err := repo.GetChannel(id)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, model.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			http.Error(w, err.Error(), status)
+			return
+		}
+
+		if !canAccessPodcast(channel, user) {
+			http.Error(w, "podcast not found", http.StatusNotFound)
+			return
+		}
+
+		if err := repo.DeleteChannel(id); err != nil {
+			log.Error(ctx, "Error deleting podcast", "id", id, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func (api *Router) listPodcastEpisodes() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		user, _ := request.UserFrom(ctx)
+		id := chi.URLParam(r, "id")
+		repo := api.ds.Podcast(ctx)
+
+		channel, err := repo.GetChannel(id)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, model.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			http.Error(w, err.Error(), status)
+			return
+		}
+
+		if !canAccessPodcast(channel, user) {
+			http.Error(w, "podcast not found", http.StatusNotFound)
+			return
+		}
+
+		episodes, err := repo.ListEpisodes(id)
+		if err != nil {
+			log.Error(ctx, "Error listing podcast episodes", "id", id, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(episodes); err != nil {
+			log.Error(ctx, "Error encoding podcast episodes", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
+
+func canAccessPodcast(channel *model.PodcastChannel, user model.User) bool {
+	return channel.IsGlobal || channel.UserID == user.ID
+}

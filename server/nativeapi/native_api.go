@@ -14,6 +14,7 @@ import (
 	"github.com/navidrome/navidrome/conf"
 	"github.com/navidrome/navidrome/core"
 	"github.com/navidrome/navidrome/core/metrics"
+	"github.com/navidrome/navidrome/core/podcast"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
 	"github.com/navidrome/navidrome/model/request"
@@ -25,13 +26,14 @@ type Router struct {
 	ds          model.DataStore
 	share       core.Share
 	playlists   core.Playlists
+	podcasts    *podcast.Service
 	insights    metrics.Insights
 	libs        core.Library
 	maintenance core.Maintenance
 }
 
-func New(ds model.DataStore, share core.Share, playlists core.Playlists, insights metrics.Insights, libraryService core.Library, maintenance core.Maintenance) *Router {
-	r := &Router{ds: ds, share: share, playlists: playlists, insights: insights, libs: libraryService, maintenance: maintenance}
+func New(ds model.DataStore, share core.Share, playlists core.Playlists, podcasts *podcast.Service, insights metrics.Insights, libraryService core.Library, maintenance core.Maintenance) *Router {
+	r := &Router{ds: ds, share: share, playlists: playlists, podcasts: podcasts, insights: insights, libs: libraryService, maintenance: maintenance}
 	r.Handler = r.routes()
 	return r
 }
@@ -63,6 +65,7 @@ func (api *Router) routes() http.Handler {
 		api.addPlaylistRoute(r)
 		api.addPlaylistTrackRoute(r)
 		api.addSongPlaylistsRoute(r)
+		api.addPodcastRoute(r)
 		api.addQueueRoute(r)
 		api.addMissingFilesRoute(r)
 		api.addKeepAliveRoute(r)
