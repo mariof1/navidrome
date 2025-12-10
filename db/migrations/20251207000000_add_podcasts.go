@@ -16,7 +16,7 @@ func upAddPodcasts(ctx context.Context, tx *sql.Tx) error {
 
 	tasks := []execFunc{
 		exec(`CREATE TABLE IF NOT EXISTS podcast_channel (
-id integer primary key autoincrement,
+id text primary key,
 title text,
 rss_url text not null,
 site_url text,
@@ -31,8 +31,8 @@ last_error text
 );`),
 		exec(`CREATE INDEX IF NOT EXISTS idx_podcast_channel_user_global ON podcast_channel(user_id,is_global);`),
 		exec(`CREATE TABLE IF NOT EXISTS podcast_episode (
-id integer primary key autoincrement,
-channel_id integer not null,
+id text primary key,
+channel_id text not null,
 guid text not null,
 title text,
 description text,

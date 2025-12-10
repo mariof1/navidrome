@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -20,6 +21,46 @@ type Service struct {
 	httpClient      *http.Client
 }
 
+type FeedErrorCode string
+
+const (
+	ErrInvalidURL  FeedErrorCode = "invalid_url"
+	ErrFetchFailed FeedErrorCode = "fetch_failed"
+	ErrInvalidFeed FeedErrorCode = "invalid_feed"
+)
+
+type FeedError struct {
+	code FeedErrorCode
+	err  error
+}
+
+func newFeedError(code FeedErrorCode, err error) *FeedError {
+	return &FeedError{code: code, err: err}
+}
+
+func (e *FeedError) Error() string {
+	return e.err.Error()
+}
+
+func (e *FeedError) Unwrap() error {
+	return e.err
+}
+
+func (e *FeedError) Code() FeedErrorCode {
+	return e.code
+}
+
+func (e *FeedError) Message() string {
+	switch e.code {
+	case ErrInvalidURL:
+		return "invalid rss url"
+	case ErrInvalidFeed:
+		return "invalid rss feed"
+	default:
+		return "could not fetch rss feed"
+	}
+}
+
 func NewService(repo model.PodcastRepository) *Service {
 	return &Service{repo: repo, refreshInterval: time.Hour, httpClient: http.DefaultClient}
 }
@@ -30,7 +71,7 @@ func (s *Service) AddChannel(ctx context.Context, url string, owner *model.User,
 	}
 	feed, err := s.fetchFeed(ctx, url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch feed %q: %w", url, err)
 	}
 	channel := &model.PodcastChannel{
 		Title:           feed.Title,
@@ -43,11 +84,11 @@ func (s *Service) AddChannel(ctx context.Context, url string, owner *model.User,
 		LastRefreshedAt: time.Now(),
 	}
 	if err := s.repo.CreateChannel(channel); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create channel %q: %w", url, err)
 	}
 	episodes := s.mapEpisodes(channel, feed)
 	if err := s.repo.SaveEpisodes(channel.ID, episodes); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("save episodes for %q: %w", url, err)
 	}
 	channel.Episodes = episodes
 	return channel, nil
@@ -167,23 +208,23 @@ type rssEnclosure struct {
 func (s *Service) fetchFeed(ctx context.Context, url string) (*rssFeed, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return nil, newFeedError(ErrInvalidURL, err)
 	}
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, newFeedError(ErrFetchFailed, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		return nil, errors.New("failed to load feed")
+		return nil, newFeedError(ErrFetchFailed, fmt.Errorf("feed returned status %d", resp.StatusCode))
 	}
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, newFeedError(ErrFetchFailed, err)
 	}
 	var env rssEnvelope
 	if err := xml.Unmarshal(data, &env); err != nil {
-		return nil, err
+		return nil, newFeedError(ErrInvalidFeed, err)
 	}
 	feed := &rssFeed{
 		Title:       env.Channel.Title,
