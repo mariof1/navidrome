@@ -65,9 +65,28 @@ const extractSort = (sort) => {
 }
 
 const extractStrings = (rules = [], field, operator = 'contains') =>
-  flattenRules(rules)
-    .filter((rule) => rule[operator] && rule[operator][field])
-    .map((rule) => rule[operator][field])
+  flattenRules(rules).reduce((values, rule) => {
+    if (!rule[operator] || !rule[operator][field]) {
+      return values
+    }
+
+    const rawValue = rule[operator][field]
+    if (Array.isArray(rawValue)) {
+      values.push(
+        ...rawValue
+          .map((entry) => `${entry}`.trim())
+          .filter(Boolean)
+      )
+      return values
+    }
+
+    const normalized = `${rawValue}`.trim()
+    if (normalized) {
+      values.push(normalized)
+    }
+
+    return values
+  }, [])
 
 const normalizeMatchMode = (mode) => (mode === MATCH_ALL ? MATCH_ALL : MATCH_ANY)
 
