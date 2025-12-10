@@ -53,6 +53,7 @@ type Subsonic struct {
 	Lyrics     *Lyrics     `xml:"lyrics,omitempty"                                        json:"lyrics,omitempty"`
 
 	InternetRadioStations *InternetRadioStations `xml:"internetRadioStations,omitempty"   json:"internetRadioStations,omitempty"`
+	Podcasts              *Podcasts              `xml:"podcasts,omitempty"                json:"podcasts,omitempty"`
 
 	JukeboxStatus   *JukeboxStatus   `xml:"jukeboxStatus,omitempty"                       json:"jukeboxStatus,omitempty"`
 	JukeboxPlaylist *JukeboxPlaylist `xml:"jukeboxPlaylist,omitempty"                     json:"jukeboxPlaylist,omitempty"`
@@ -511,6 +512,38 @@ type Radio struct {
 	Name        string `xml:"name,attr"                  json:"name"`
 	StreamUrl   string `xml:"streamUrl,attr"             json:"streamUrl"`
 	HomepageUrl string `xml:"homePageUrl,omitempty,attr" json:"homePageUrl,omitempty"`
+}
+
+type PodcastEpisode struct {
+	ID               string     `xml:"id,attr"                          json:"id"`
+	StreamID         string     `xml:"streamId,attr,omitempty"          json:"streamId,omitempty"`
+	ChannelID        string     `xml:"channelId,attr,omitempty"         json:"channelId,omitempty"`
+	Title            string     `xml:"title,attr,omitempty"             json:"title,omitempty"`
+	Description      string     `xml:"description,attr,omitempty"       json:"description,omitempty"`
+	Status           string     `xml:"status,attr,omitempty"            json:"status,omitempty"`
+	CoverArt         string     `xml:"coverArt,attr,omitempty"          json:"coverArt,omitempty"`
+	OriginalImageUrl string     `xml:"originalImageUrl,attr,omitempty"  json:"originalImageUrl,omitempty"`
+	PublishDate      *time.Time `xml:"publishDate,attr,omitempty"       json:"publishDate,omitempty"`
+	Duration         int64      `xml:"duration,attr,omitempty"          json:"duration,omitempty"`
+	IsVideo          bool       `xml:"isVideo,attr,omitempty"           json:"isVideo,omitempty"`
+	OriginalUrl      string     `xml:"originalUrl,attr,omitempty"       json:"originalUrl,omitempty"`
+	AudioUrl         string     `xml:"audioUrl,attr,omitempty"          json:"audioUrl,omitempty"`
+}
+
+type PodcastChannel struct {
+	ID               string           `xml:"id,attr"                         json:"id"`
+	Title            string           `xml:"title,attr,omitempty"            json:"title,omitempty"`
+	Url              string           `xml:"url,attr,omitempty"              json:"url,omitempty"`
+	Description      string           `xml:"description,attr,omitempty"      json:"description,omitempty"`
+	Status           string           `xml:"status,attr,omitempty"           json:"status,omitempty"`
+	CoverArt         string           `xml:"coverArt,attr,omitempty"         json:"coverArt,omitempty"`
+	OriginalImageUrl string           `xml:"originalImageUrl,attr,omitempty" json:"originalImageUrl,omitempty"`
+	LastUpdate       *time.Time       `xml:"lastUpdate,attr,omitempty"       json:"lastUpdate,omitempty"`
+	Episode          []PodcastEpisode `xml:"episode,omitempty"              json:"episode,omitempty"`
+}
+
+type Podcasts struct {
+	Channel []PodcastChannel `xml:"channel,omitempty" json:"channel,omitempty"`
 }
 
 type JukeboxStatus struct {

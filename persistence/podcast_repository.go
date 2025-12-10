@@ -19,6 +19,7 @@ type PodcastRepository interface {
 	ListVisible(userID string, includeGlobal bool) (model.PodcastChannels, error)
 	SaveEpisodes(channelID string, episodes model.PodcastEpisodes) error
 	ListEpisodes(channelID string) (model.PodcastEpisodes, error)
+	GetEpisode(id string) (*model.PodcastEpisode, error)
 }
 
 type sqlPodcastRepository struct {
@@ -121,4 +122,14 @@ func (r *sqlPodcastRepository) ListEpisodes(channelID string) (model.PodcastEpis
 	sel := Select("*").From("podcast_episode").Where(Eq{"channel_id": channelID}).OrderBy("published_at desc")
 	err := r.queryAll(sel, &episodes)
 	return episodes, err
+}
+
+func (r *sqlPodcastRepository) GetEpisode(id string) (*model.PodcastEpisode, error) {
+	var episode model.PodcastEpisode
+	sel := Select("*").From("podcast_episode").Where(Eq{"podcast_episode.id": id})
+	err := r.queryOne(sel, &episode)
+	if err != nil {
+		return nil, err
+	}
+	return &episode, nil
 }

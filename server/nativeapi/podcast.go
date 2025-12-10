@@ -31,6 +31,7 @@ func (api *Router) addPodcastRoute(r chi.Router) {
 		r.Route("/{id}", func(r chi.Router) {
 			r.Use(server.URLParamsMiddleware)
 			r.Get("/", api.getPodcast())
+			r.Put("/", api.updatePodcast())
 			r.Delete("/", api.deletePodcast())
 			r.Get("/episodes", api.listPodcastEpisodes())
 		})
@@ -80,11 +81,6 @@ func (api *Router) createPodcast() http.HandlerFunc {
 		payload.RSSUrl = strings.TrimSpace(payload.RSSUrl)
 		if payload.RSSUrl == "" {
 			http.Error(w, "rss url required", http.StatusBadRequest)
-			return
-		}
-
-		if payload.IsGlobal && !user.IsAdmin {
-			http.Error(w, "Access denied: admin privileges required", http.StatusForbidden)
 			return
 		}
 
@@ -144,6 +140,67 @@ func (api *Router) getPodcast() http.HandlerFunc {
 	}
 }
 
+func (api *Router) updatePodcast() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		user, _ := request.UserFrom(ctx)
+		id := chi.URLParam(r, "id")
+
+		repo := api.ds.Podcast(ctx)
+		channel, err := repo.GetChannel(id)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, model.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			http.Error(w, err.Error(), status)
+			return
+		}
+
+		if !canManagePodcast(channel, user) {
+			http.Error(w, "podcast not found", http.StatusNotFound)
+			return
+		}
+
+		var payload podcastCreatePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		updatedChannel, err := api.podcasts.UpdateChannel(ctx, id, payload.RSSUrl, payload.IsGlobal)
+		if err != nil {
+			status := http.StatusInternalServerError
+			msg := err.Error()
+			var feedErr *podcast.FeedError
+			if errors.As(err, &feedErr) {
+				msg = feedErr.Message()
+				switch feedErr.Code() {
+				case podcast.ErrInvalidURL, podcast.ErrInvalidFeed:
+					status = http.StatusBadRequest
+				case podcast.ErrFetchFailed:
+					status = http.StatusBadGateway
+				}
+			}
+			log.Error(ctx, "Error updating podcast channel", "id", id, err)
+			http.Error(w, msg, status)
+			return
+		}
+
+		if len(updatedChannel.Episodes) == 0 {
+			if episodes, err := repo.ListEpisodes(id); err == nil {
+				updatedChannel.Episodes = episodes
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(updatedChannel); err != nil {
+			log.Error(ctx, "Error encoding podcast response", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
+
 func (api *Router) deletePodcast() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -161,7 +218,7 @@ func (api *Router) deletePodcast() http.HandlerFunc {
 			return
 		}
 
-		if !canAccessPodcast(channel, user) {
+		if !canManagePodcast(channel, user) {
 			http.Error(w, "podcast not found", http.StatusNotFound)
 			return
 		}
@@ -214,5 +271,9 @@ func (api *Router) listPodcastEpisodes() http.HandlerFunc {
 }
 
 func canAccessPodcast(channel *model.PodcastChannel, user model.User) bool {
-	return channel.IsGlobal || channel.UserID == user.ID
+	return channel.IsGlobal || user.IsAdmin || channel.UserID == user.ID
+}
+
+func canManagePodcast(channel *model.PodcastChannel, user model.User) bool {
+	return user.IsAdmin || channel.UserID == user.ID
 }

@@ -50,4 +50,5 @@ type PodcastRepository interface {
 	ListVisible(userID string, includeGlobal bool) (PodcastChannels, error)
 	SaveEpisodes(channelID string, episodes PodcastEpisodes) error
 	ListEpisodes(channelID string) (PodcastEpisodes, error)
+	GetEpisode(id string) (*PodcastEpisode, error)
 }
