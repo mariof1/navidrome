@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"math"
 	"time"
 
 	"github.com/navidrome/navidrome/conf"
@@ -57,9 +58,9 @@ var _ = Describe("PlaylistRepository", func() {
 			_, err := repo.Get("666")
 			Expect(err).To(MatchError(model.ErrNotFound))
 		})
-                It("returns all tracks", func() {
-                        pls, err := repo.GetWithTracks(plsBest.ID, true, false)
-                        Expect(err).ToNot(HaveOccurred())
+		It("returns all tracks", func() {
+			pls, err := repo.GetWithTracks(plsBest.ID, true, false)
+			Expect(err).ToNot(HaveOccurred())
 			Expect(pls.Name).To(Equal(plsBest.Name))
 			Expect(pls.Tracks).To(HaveLen(2))
 			Expect(pls.Tracks[0].ID).To(Equal("1"))
@@ -73,32 +74,32 @@ var _ = Describe("PlaylistRepository", func() {
 			mfs := pls.MediaFiles()
 			Expect(mfs).To(HaveLen(2))
 			Expect(mfs[0].ID).To(Equal(songDayInALife.ID))
-                        Expect(mfs[1].ID).To(Equal(songRadioactivity.ID))
-                })
+			Expect(mfs[1].ID).To(Equal(songRadioactivity.ID))
+		})
 
-                It("includes missing tracks only when requested", func() {
-                        newPls := model.Playlist{Name: "Missing Tracks", OwnerID: "userid"}
-                        newPls.AddMediaFilesByID([]string{"1001"})
+		It("includes missing tracks only when requested", func() {
+			newPls := model.Playlist{Name: "Missing Tracks", OwnerID: "userid"}
+			newPls.AddMediaFilesByID([]string{"1001"})
 
-                        Expect(repo.Put(&newPls)).To(Succeed())
-                        defer repo.Delete(newPls.ID)
+			Expect(repo.Put(&newPls)).To(Succeed())
+			defer repo.Delete(newPls.ID)
 
-                        db := GetDBXBuilder()
-                        _, err := db.Update("media_file", dbx.Params{"missing": true}, dbx.HashExp{"id": "1001"}).Execute()
-                        Expect(err).ToNot(HaveOccurred())
-                        defer db.Update("media_file", dbx.Params{"missing": false}, dbx.HashExp{"id": "1001"}).Execute()
-                        Expect(err).ToNot(HaveOccurred())
+			db := GetDBXBuilder()
+			_, err := db.Update("media_file", dbx.Params{"missing": true}, dbx.HashExp{"id": "1001"}).Execute()
+			Expect(err).ToNot(HaveOccurred())
+			defer db.Update("media_file", dbx.Params{"missing": false}, dbx.HashExp{"id": "1001"}).Execute()
+			Expect(err).ToNot(HaveOccurred())
 
-                        plsWithMissing, err := repo.GetWithTracks(newPls.ID, false, true)
-                        Expect(err).ToNot(HaveOccurred())
-                        Expect(plsWithMissing.Tracks).To(HaveLen(1))
-                        Expect(plsWithMissing.Tracks[0].Missing).To(BeTrue())
+			plsWithMissing, err := repo.GetWithTracks(newPls.ID, false, true)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(plsWithMissing.Tracks).To(HaveLen(1))
+			Expect(plsWithMissing.Tracks[0].Missing).To(BeTrue())
 
-                        plsWithoutMissing, err := repo.GetWithTracks(newPls.ID, false, false)
-                        Expect(err).ToNot(HaveOccurred())
-                        Expect(plsWithoutMissing.Tracks).To(BeEmpty())
-                })
-        })
+			plsWithoutMissing, err := repo.GetWithTracks(newPls.ID, false, false)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(plsWithoutMissing.Tracks).To(BeEmpty())
+		})
+	})
 
 	It("Put/Exists/Delete", func() {
 		By("saves the playlist to the DB")
@@ -199,6 +200,15 @@ var _ = Describe("PlaylistRepository", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(savedPls.Rules).To(Equal(rules))
 			})
+
+			It("forces auto-import off for smart playlists", func() {
+				newPls := model.Playlist{Name: "Smart Sync", OwnerID: "userid", Sync: true, Rules: rules}
+				Expect(repo.Put(&newPls)).To(Succeed())
+
+				saved, err := repo.Get(newPls.ID)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(saved.Sync).To(BeFalse())
+			})
 		})
 
 		Context("invalid rules", func() {
@@ -211,6 +221,129 @@ var _ = Describe("PlaylistRepository", func() {
 				}
 				newPls := model.Playlist{Name: "Great!", OwnerID: "userid", Rules: rules}
 				Expect(repo.Put(&newPls)).To(MatchError(ContainSubstring("invalid criteria expression")))
+			})
+		})
+
+		Context("play count filters", func() {
+			var mfRepo model.MediaFileRepository
+			var playlistIDs []string
+
+			BeforeEach(func() {
+				ctx := log.NewContext(GinkgoT().Context())
+				ctx = request.WithUser(ctx, model.User{ID: "userid", UserName: "userid", IsAdmin: true})
+				mfRepo = NewMediaFileRepository(ctx, GetDBXBuilder())
+			})
+
+			AfterEach(func() {
+				for _, id := range playlistIDs {
+					_ = repo.Delete(id)
+				}
+				playlistIDs = nil
+				ids := []string{"playcount-0", "playcount-1", "playcount-5"}
+				for _, id := range ids {
+					_, _ = GetDBXBuilder().Delete("annotation", dbx.HashExp{"item_id": id}).Execute()
+					_, _ = GetDBXBuilder().Delete("media_file", dbx.HashExp{"id": id}).Execute()
+				}
+			})
+
+			setupPlayCountData := func() {
+				ids := []string{"playcount-0", "playcount-1", "playcount-5"}
+				for _, id := range ids {
+					_, _ = GetDBXBuilder().Delete("annotation", dbx.HashExp{"item_id": id}).Execute()
+					_, _ = GetDBXBuilder().Delete("media_file", dbx.HashExp{"id": id}).Execute()
+				}
+
+				tracks := []model.MediaFile{
+					{ID: "playcount-0", Title: "Never Played", Artist: "PlayCount Artist", ArtistID: "pc-artist", Album: "PlayCount Album", AlbumID: "pc-album", Path: "/playcount/zero.mp3", LibraryID: 1},
+					{ID: "playcount-1", Title: "Low Plays", Artist: "PlayCount Artist", ArtistID: "pc-artist", Album: "PlayCount Album", AlbumID: "pc-album", Path: "/playcount/one.mp3", LibraryID: 1},
+					{ID: "playcount-5", Title: "High Plays", Artist: "PlayCount Artist", ArtistID: "pc-artist", Album: "PlayCount Album", AlbumID: "pc-album", Path: "/playcount/five.mp3", LibraryID: 1},
+				}
+
+				for _, track := range tracks {
+					Expect(mfRepo.Put(&track)).To(Succeed())
+				}
+
+				Expect(mfRepo.IncPlayCount("playcount-1", time.Now())).To(Succeed())
+				for i := 0; i < 5; i++ {
+					Expect(mfRepo.IncPlayCount("playcount-5", time.Now())).To(Succeed())
+				}
+			}
+
+			createSmartPlaylist := func(min *int64, max *int64) *model.Playlist {
+				setupPlayCountData()
+				expr := criteria.All{
+					criteria.Contains{"album": "PlayCount Album"},
+				}
+				if min != nil || max != nil {
+					lower := int64(math.MinInt64)
+					upper := int64(math.MaxInt64)
+					if min != nil {
+						lower = *min
+					}
+					if max != nil {
+						upper = *max
+					}
+					expr = append(expr, criteria.InTheRange{"playcount": []any{lower, upper}})
+				}
+
+				rules := &criteria.Criteria{Expression: expr}
+				pls := model.Playlist{Name: "By PlayCount", OwnerID: "userid", Rules: rules}
+				Expect(repo.Put(&pls)).To(Succeed())
+				playlistIDs = append(playlistIDs, pls.ID)
+				return &pls
+			}
+
+			getTrackIDs := func(pls *model.Playlist) []string {
+				loaded, err := repo.GetWithTracks(pls.ID, true, false)
+				Expect(err).ToNot(HaveOccurred())
+
+				ids := make([]string, 0, len(loaded.Tracks))
+				for _, t := range loaded.Tracks {
+					ids = append(ids, t.MediaFileID)
+				}
+				return ids
+			}
+
+			It("returns all play counts when bounds are empty", func() {
+				pls := createSmartPlaylist(nil, nil)
+				ids := getTrackIDs(pls)
+
+				Expect(ids).To(ContainElements("playcount-0", "playcount-1", "playcount-5"))
+			})
+
+			It("filters by minimum when only min is set", func() {
+				min := int64(2)
+				pls := createSmartPlaylist(&min, nil)
+				ids := getTrackIDs(pls)
+
+				Expect(ids).To(ContainElement("playcount-5"))
+				Expect(ids).ToNot(ContainElements("playcount-0", "playcount-1"))
+			})
+
+			It("filters by maximum when only max is set", func() {
+				max := int64(1)
+				pls := createSmartPlaylist(nil, &max)
+				ids := getTrackIDs(pls)
+
+				Expect(ids).To(ContainElements("playcount-0", "playcount-1"))
+				Expect(ids).ToNot(ContainElement("playcount-5"))
+			})
+
+			It("filters between bounds when both are set", func() {
+				min := int64(1)
+				max := int64(3)
+				pls := createSmartPlaylist(&min, &max)
+				ids := getTrackIDs(pls)
+
+				Expect(ids).To(ConsistOf("playcount-1"))
+			})
+
+			It("matches only never-played tracks when both bounds are zero", func() {
+				zero := int64(0)
+				pls := createSmartPlaylist(&zero, &zero)
+				ids := getTrackIDs(pls)
+
+				Expect(ids).To(ConsistOf("playcount-0"))
 			})
 		})
 

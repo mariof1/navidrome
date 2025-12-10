@@ -112,6 +112,9 @@ func (r *playlistRepository) Delete(id string) error {
 func (r *playlistRepository) Put(p *model.Playlist) error {
 	pls := dbPlaylist{Playlist: *p}
 	pls.Path = model.NormalizePlaylistPath(pls.Path)
+	if pls.IsSmartPlaylist() {
+		pls.Sync = false
+	}
 	if pls.ID == "" {
 		pls.CreatedAt = time.Now()
 	} else {
