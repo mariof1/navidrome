@@ -29,7 +29,7 @@ func NewPodcastRepository(ctx context.Context, db dbx.Builder) PodcastRepository
 	r := &sqlPodcastRepository{}
 	r.ctx = ctx
 	r.db = db
-	r.registerModel((*model.PodcastChannel)(nil), map[string]filterFunc{})
+	r.registerModel(&model.PodcastChannel{}, nil)
 	return r
 }
 
