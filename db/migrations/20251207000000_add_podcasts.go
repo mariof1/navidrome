@@ -3,14 +3,19 @@ package migrations
 import (
 	"context"
 	"database/sql"
+
+	"github.com/pressly/goose/v3"
 )
 
 func init() {
-	registerMigration(20251207000000, "add_podcasts", func(ctx context.Context, tx *sql.Tx) error {
-		exec := createExecuteFunc(ctx, tx)
+	goose.AddMigrationContext(upAddPodcasts, downAddPodcasts)
+}
 
-		tasks := []execFunc{
-			exec(`CREATE TABLE IF NOT EXISTS podcast_channel (
+func upAddPodcasts(ctx context.Context, tx *sql.Tx) error {
+	exec := createExecuteFunc(ctx, tx)
+
+	tasks := []execFunc{
+		exec(`CREATE TABLE IF NOT EXISTS podcast_channel (
 id integer primary key autoincrement,
 title text,
 rss_url text not null,
@@ -24,8 +29,8 @@ updated_at datetime default current_timestamp,
 last_refreshed_at datetime,
 last_error text
 );`),
-			exec(`CREATE INDEX IF NOT EXISTS idx_podcast_channel_user_global ON podcast_channel(user_id,is_global);`),
-			exec(`CREATE TABLE IF NOT EXISTS podcast_episode (
+		exec(`CREATE INDEX IF NOT EXISTS idx_podcast_channel_user_global ON podcast_channel(user_id,is_global);`),
+		exec(`CREATE TABLE IF NOT EXISTS podcast_episode (
 id integer primary key autoincrement,
 channel_id integer not null,
 guid text not null,
@@ -40,15 +45,18 @@ created_at datetime default current_timestamp,
 updated_at datetime default current_timestamp,
 foreign key(channel_id) references podcast_channel(id)
 );`),
-			exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_podcast_episode_channel_guid ON podcast_episode(channel_id,guid);`),
-			exec(`CREATE INDEX IF NOT EXISTS idx_podcast_episode_channel_published ON podcast_episode(channel_id,published_at DESC);`),
-		}
+		exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_podcast_episode_channel_guid ON podcast_episode(channel_id,guid);`),
+		exec(`CREATE INDEX IF NOT EXISTS idx_podcast_episode_channel_published ON podcast_episode(channel_id,published_at DESC);`),
+	}
 
-		for _, task := range tasks {
-			if err := task(); err != nil {
-				return err
-			}
+	for _, task := range tasks {
+		if err := task(); err != nil {
+			return err
 		}
-		return nil
-	})
+	}
+	return nil
+}
+
+func downAddPodcasts(ctx context.Context, tx *sql.Tx) error {
+	return nil
 }
