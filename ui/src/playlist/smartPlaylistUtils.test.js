@@ -42,6 +42,9 @@ describe('parseCriteriaToForm', () => {
     expect(form.includeGenres).toEqual(['Rock'])
     expect(form.includeGenresMatchMode).toBe('any')
     expect(form.excludeGenres).toEqual(['Metal'])
+    expect(form.excludeArtistsMatchMode).toBe('any')
+    expect(form.excludeAlbumsMatchMode).toBe('any')
+    expect(form.excludeGenresMatchMode).toBe('any')
   })
 
   it('flattens nested conjunctions when extracting strings', () => {
@@ -72,6 +75,23 @@ describe('parseCriteriaToForm', () => {
     expect(form.includeGenresMatchMode).toBe('all')
     expect(form.includeArtists).toEqual(['Artist 1', 'Artist 2'])
     expect(form.includeArtistsMatchMode).toBe('all')
+  })
+
+  it('uses stored match modes for exclusion fields', () => {
+    const form = parseCriteriaToForm({
+      all: [
+        { notContains: { artist: 'Artist 1' } },
+        { notContains: { album: 'Album 1' } },
+        { notContains: { genre: 'Metal' } },
+      ],
+      excludeGenresMatchMode: 'all',
+      excludeArtistsMatchMode: 'all',
+      excludeAlbumsMatchMode: 'any',
+    })
+
+    expect(form.excludeArtistsMatchMode).toBe('all')
+    expect(form.excludeAlbumsMatchMode).toBe('any')
+    expect(form.excludeGenresMatchMode).toBe('all')
   })
 })
 
@@ -121,6 +141,26 @@ describe('buildSmartCriteria', () => {
     )
   })
 
+  it('builds exclude match-all expressions when requested', () => {
+    const criteria = buildSmartCriteria({
+      smart: true,
+      excludeGenres: ['Rock', 'Metal'],
+      excludeGenresMatchMode: 'all',
+    })
+
+    expect(criteria.all).toEqual(
+      expect.arrayContaining([
+        {
+          any: [
+            { notContains: { genre: 'Rock' } },
+            { notContains: { genre: 'Metal' } },
+          ],
+        },
+      ])
+    )
+    expect(criteria.excludeGenresMatchMode).toBe('all')
+  })
+
   it('builds match-all expressions when requested', () => {
     const criteria = buildSmartCriteria({
       smart: true,
@@ -162,6 +202,25 @@ describe('buildSmartCriteria', () => {
     )
     expect(criteria.genresMatchMode).toBe('any')
     expect(criteria.albumsMatchMode).toBe('all')
+  })
+
+  it('combines include and exclude match-all rules', () => {
+    const criteria = buildSmartCriteria({
+      smart: true,
+      includeGenres: ['A', 'B'],
+      includeGenresMatchMode: 'all',
+      excludeGenres: ['C'],
+      excludeGenresMatchMode: 'all',
+    })
+
+    expect(criteria.all).toEqual(
+      expect.arrayContaining([
+        { contains: { genre: ['A', 'B'] } },
+        { any: [{ notContains: { genre: 'C' } }] },
+      ])
+    )
+    expect(criteria.genresMatchMode).toBe('all')
+    expect(criteria.excludeGenresMatchMode).toBe('all')
   })
 
   describe('play count ranges', () => {
