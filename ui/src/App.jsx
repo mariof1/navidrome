@@ -18,6 +18,7 @@ import share from './share'
 import library from './library'
 import { Player } from './audioplayer'
 import customRoutes from './routes'
+import podcast from './podcast'
 import {
   libraryReducer,
   themeReducer,
@@ -104,6 +105,7 @@ const Admin = (props) => {
           name="radio"
           {...(permissions === 'admin' ? radio.admin : radio.all)}
         />,
+        <Resource name="podcast" {...podcast} />,
         config.enableSharing && <Resource name="share" {...share} />,
         <Resource
           name="playlist"
