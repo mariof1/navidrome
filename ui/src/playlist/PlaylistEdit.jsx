@@ -29,7 +29,7 @@ const PlaylistEditToolbar = (props) => (
 const SyncFragment = ({ formData, variant, ...rest }) => {
   return (
     <>
-      {formData.path && <BooleanInput source="sync" {...rest} />}
+      {formData.path && !formData.smart && <BooleanInput source="sync" {...rest} />}
       {formData.path && <TextField source="path" {...rest} />}
     </>
   )
@@ -73,7 +73,12 @@ const PlaylistEditForm = (props) => {
       <BooleanInput source="public" disabled={!isWritable(record?.ownerId)} />
       <SmartPlaylistFields />
       <FormDataConsumer>
-        {(formDataProps) => <SyncFragment {...formDataProps} />}
+        {({ formData, form, ...rest }) => {
+          if (formData.smart && formData.sync) {
+            form.change('sync', false)
+          }
+          return <SyncFragment formData={formData} form={form} {...rest} />
+        }}
       </FormDataConsumer>
     </SimpleForm>
   )

@@ -56,6 +56,7 @@ const SmartPlaylistFields = () => {
                 <NumberInput
                   source="minPlayCount"
                   label={translate('resources.playlist.smart.fields.minPlayCount')}
+                  parse={(value) => (value === '' || value === null ? undefined : value)}
                   fullWidth
                 />
               </Grid>
@@ -63,6 +64,7 @@ const SmartPlaylistFields = () => {
                 <NumberInput
                   source="maxPlayCount"
                   label={translate('resources.playlist.smart.fields.maxPlayCount')}
+                  parse={(value) => (value === '' || value === null ? undefined : value)}
                   fullWidth
                 />
               </Grid>

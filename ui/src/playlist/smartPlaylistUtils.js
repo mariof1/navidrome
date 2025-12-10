@@ -248,9 +248,11 @@ export const stripSmartFormFields = (data) => {
 export const buildPlaylistPayload = (formData) => {
   const { core } = stripSmartFormFields(formData)
   const rules = buildSmartCriteria(formData)
+  const sync = formData.smart ? false : core.sync
 
   return {
     ...core,
+    ...(sync !== undefined ? { sync } : {}),
     rules,
   }
 }
