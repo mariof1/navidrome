@@ -4,18 +4,18 @@ import "time"
 
 // PodcastChannel represents a podcast feed configured in Navidrome.
 type PodcastChannel struct {
-	ID              string    `structs:"id" json:"id"`
-	Title           string    `structs:"title" json:"title"`
-	RSSURL          string    `structs:"rss_url" json:"rssUrl"`
-	SiteURL         string    `structs:"site_url" json:"siteUrl"`
-	Description     string    `structs:"description" json:"description"`
-	ImageURL        string    `structs:"image_url" json:"imageUrl"`
-	UserID          string    `structs:"user_id" json:"userId"`
-	IsGlobal        bool      `structs:"is_global" json:"isGlobal"`
-	CreatedAt       time.Time `structs:"created_at" json:"createdAt"`
-	UpdatedAt       time.Time `structs:"updated_at" json:"updatedAt"`
-	LastRefreshedAt time.Time `structs:"last_refreshed_at" json:"lastRefreshedAt"`
-	LastError       string    `structs:"last_error" json:"lastError"`
+	ID              string     `structs:"id" json:"id"`
+	Title           string     `structs:"title" json:"title"`
+	RSSURL          string     `structs:"rss_url" json:"rssUrl"`
+	SiteURL         string     `structs:"site_url" json:"siteUrl"`
+	Description     string     `structs:"description" json:"description"`
+	ImageURL        string     `structs:"image_url" json:"imageUrl"`
+	UserID          string     `structs:"user_id" json:"userId"`
+	IsGlobal        bool       `structs:"is_global" json:"isGlobal"`
+	CreatedAt       time.Time  `structs:"created_at" json:"createdAt"`
+	UpdatedAt       time.Time  `structs:"updated_at" json:"updatedAt"`
+	LastRefreshedAt *time.Time `structs:"last_refreshed_at" json:"lastRefreshedAt"`
+	LastError       string     `structs:"last_error" json:"lastError"`
 
 	Episodes PodcastEpisodes `structs:"-" json:"episodes,omitempty"`
 }

@@ -73,6 +73,7 @@ func (s *Service) AddChannel(ctx context.Context, url string, owner *model.User,
 	if err != nil {
 		return nil, fmt.Errorf("fetch feed %q: %w", url, err)
 	}
+	now := time.Now()
 	channel := &model.PodcastChannel{
 		Title:           feed.Title,
 		RSSURL:          url,
@@ -81,7 +82,7 @@ func (s *Service) AddChannel(ctx context.Context, url string, owner *model.User,
 		ImageURL:        feed.ImageURL,
 		UserID:          owner.ID,
 		IsGlobal:        isGlobal,
-		LastRefreshedAt: time.Now(),
+		LastRefreshedAt: &now,
 	}
 	if err := s.repo.CreateChannel(channel); err != nil {
 		return nil, fmt.Errorf("create channel %q: %w", url, err)
@@ -104,7 +105,8 @@ func (s *Service) RefreshChannel(ctx context.Context, channelID string) error {
 		channel.LastError = err.Error()
 		return s.repo.UpdateChannel(channel)
 	}
-	channel.LastRefreshedAt = time.Now()
+	now := time.Now()
+	channel.LastRefreshedAt = &now
 	channel.LastError = ""
 	channel.Title = feed.Title
 	channel.Description = feed.Description
@@ -120,10 +122,10 @@ func (s *Service) RefreshChannel(ctx context.Context, channelID string) error {
 }
 
 func (s *Service) ShouldRefresh(channel *model.PodcastChannel) bool {
-	if channel.LastRefreshedAt.IsZero() {
+	if channel.LastRefreshedAt == nil || channel.LastRefreshedAt.IsZero() {
 		return true
 	}
-	return time.Since(channel.LastRefreshedAt) > s.refreshInterval
+	return time.Since(*channel.LastRefreshedAt) > s.refreshInterval
 }
 
 func (s *Service) ListChannelsForUser(user *model.User) (model.PodcastChannels, error) {

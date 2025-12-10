@@ -197,7 +197,7 @@ func (db *MockDataStore) Podcast(ctx context.Context) model.PodcastRepository {
 		if db.RealDS != nil {
 			db.MockedPodcast = db.RealDS.Podcast(ctx)
 		} else {
-			db.MockedPodcast = struct{ model.PodcastRepository }{}
+			db.MockedPodcast = &MockPodcastRepo{}
 		}
 	}
 	return db.MockedPodcast
