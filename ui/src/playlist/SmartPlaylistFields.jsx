@@ -81,20 +81,24 @@ const SmartPlaylistFields = () => {
               </Grid>
 
               <Grid item xs={12} sm={6} md={4}>
-                <SmartCriteriaAutocompleteArrayInput
-                  reference="artist"
-                  source="includeArtists"
-                  label="resources.playlist.smart.fields.includeArtist"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <SelectInput
-                  source="includeArtistsMatchMode"
-                  label="resources.playlist.smart.match.label"
-                  choices={matchModeChoices(translate)}
-                  defaultValue="any"
-                  fullWidth
-                />
+                <Grid container direction="column" spacing={1}>
+                  <Grid item>
+                    <SmartCriteriaAutocompleteArrayInput
+                      reference="artist"
+                      source="includeArtists"
+                      label="resources.playlist.smart.fields.includeArtist"
+                    />
+                  </Grid>
+                  <Grid item>
+                    <SelectInput
+                      source="includeArtistsMatchMode"
+                      label="resources.playlist.smart.match.label"
+                      choices={matchModeChoices(translate)}
+                      defaultValue="any"
+                      fullWidth
+                    />
+                  </Grid>
+                </Grid>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <SmartCriteriaAutocompleteArrayInput
@@ -105,20 +109,24 @@ const SmartPlaylistFields = () => {
               </Grid>
 
               <Grid item xs={12} sm={6} md={4}>
-                <SmartCriteriaAutocompleteArrayInput
-                  reference="album"
-                  source="includeAlbums"
-                  label="resources.playlist.smart.fields.includeAlbum"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <SelectInput
-                  source="includeAlbumsMatchMode"
-                  label="resources.playlist.smart.match.label"
-                  choices={matchModeChoices(translate)}
-                  defaultValue="any"
-                  fullWidth
-                />
+                <Grid container direction="column" spacing={1}>
+                  <Grid item>
+                    <SmartCriteriaAutocompleteArrayInput
+                      reference="album"
+                      source="includeAlbums"
+                      label="resources.playlist.smart.fields.includeAlbum"
+                    />
+                  </Grid>
+                  <Grid item>
+                    <SelectInput
+                      source="includeAlbumsMatchMode"
+                      label="resources.playlist.smart.match.label"
+                      choices={matchModeChoices(translate)}
+                      defaultValue="any"
+                      fullWidth
+                    />
+                  </Grid>
+                </Grid>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <SmartCriteriaAutocompleteArrayInput
@@ -129,20 +137,24 @@ const SmartPlaylistFields = () => {
               </Grid>
 
               <Grid item xs={12} sm={6} md={4}>
-                <SmartCriteriaAutocompleteArrayInput
-                  reference="genre"
-                  source="includeGenres"
-                  label="resources.playlist.smart.fields.includeGenre"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <SelectInput
-                  source="includeGenresMatchMode"
-                  label="resources.playlist.smart.match.label"
-                  choices={matchModeChoices(translate)}
-                  defaultValue="any"
-                  fullWidth
-                />
+                <Grid container direction="column" spacing={1}>
+                  <Grid item>
+                    <SmartCriteriaAutocompleteArrayInput
+                      reference="genre"
+                      source="includeGenres"
+                      label="resources.playlist.smart.fields.includeGenre"
+                    />
+                  </Grid>
+                  <Grid item>
+                    <SelectInput
+                      source="includeGenresMatchMode"
+                      label="resources.playlist.smart.match.label"
+                      choices={matchModeChoices(translate)}
+                      defaultValue="any"
+                      fullWidth
+                    />
+                  </Grid>
+                </Grid>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <SmartCriteriaAutocompleteArrayInput
