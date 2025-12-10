@@ -78,13 +78,6 @@ const SmartPlaylistFields = () => {
               <Grid item xs={12} sm={6} md={4}>
                 <Grid container direction="column" spacing={1}>
                   <Grid item>
-                    <SmartCriteriaAutocompleteArrayInput
-                      reference="artist"
-                      source="includeArtists"
-                      label="resources.playlist.smart.fields.includeArtist"
-                    />
-                  </Grid>
-                  <Grid item>
                     <BooleanInput
                       source="includeArtistsMatchMode"
                       label="resources.playlist.smart.match.switchLabel"
@@ -93,17 +86,17 @@ const SmartPlaylistFields = () => {
                       parse={(value) => (value ? 'all' : 'any')}
                     />
                   </Grid>
+                  <Grid item>
+                    <SmartCriteriaAutocompleteArrayInput
+                      reference="artist"
+                      source="includeArtists"
+                      label="resources.playlist.smart.fields.includeArtist"
+                    />
+                  </Grid>
                 </Grid>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <Grid container direction="column" spacing={1}>
-                  <Grid item>
-                    <SmartCriteriaAutocompleteArrayInput
-                      reference="album"
-                      source="includeAlbums"
-                      label="resources.playlist.smart.fields.includeAlbum"
-                    />
-                  </Grid>
                   <Grid item>
                     <BooleanInput
                       source="includeAlbumsMatchMode"
@@ -113,17 +106,17 @@ const SmartPlaylistFields = () => {
                       parse={(value) => (value ? 'all' : 'any')}
                     />
                   </Grid>
+                  <Grid item>
+                    <SmartCriteriaAutocompleteArrayInput
+                      reference="album"
+                      source="includeAlbums"
+                      label="resources.playlist.smart.fields.includeAlbum"
+                    />
+                  </Grid>
                 </Grid>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <Grid container direction="column" spacing={1}>
-                  <Grid item>
-                    <SmartCriteriaAutocompleteArrayInput
-                      reference="genre"
-                      source="includeGenres"
-                      label="resources.playlist.smart.fields.includeGenre"
-                    />
-                  </Grid>
                   <Grid item>
                     <BooleanInput
                       source="includeGenresMatchMode"
@@ -133,29 +126,75 @@ const SmartPlaylistFields = () => {
                       parse={(value) => (value ? 'all' : 'any')}
                     />
                   </Grid>
+                  <Grid item>
+                    <SmartCriteriaAutocompleteArrayInput
+                      reference="genre"
+                      source="includeGenres"
+                      label="resources.playlist.smart.fields.includeGenre"
+                    />
+                  </Grid>
                 </Grid>
               </Grid>
 
               <Grid item xs={12} sm={6} md={4}>
-                <SmartCriteriaAutocompleteArrayInput
-                  reference="artist"
-                  source="excludeArtists"
-                  label="resources.playlist.smart.fields.excludeArtist"
-                />
+                <Grid container direction="column" spacing={1}>
+                  <Grid item>
+                    <BooleanInput
+                      source="excludeArtistsMatchMode"
+                      label="resources.playlist.smart.match.switchLabel"
+                      helperText="resources.playlist.smart.match.switchHelper"
+                      format={(value) => value === 'all'}
+                      parse={(value) => (value ? 'all' : 'any')}
+                    />
+                  </Grid>
+                  <Grid item>
+                    <SmartCriteriaAutocompleteArrayInput
+                      reference="artist"
+                      source="excludeArtists"
+                      label="resources.playlist.smart.fields.excludeArtist"
+                    />
+                  </Grid>
+                </Grid>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <SmartCriteriaAutocompleteArrayInput
-                  reference="album"
-                  source="excludeAlbums"
-                  label="resources.playlist.smart.fields.excludeAlbum"
-                />
+                <Grid container direction="column" spacing={1}>
+                  <Grid item>
+                    <BooleanInput
+                      source="excludeAlbumsMatchMode"
+                      label="resources.playlist.smart.match.switchLabel"
+                      helperText="resources.playlist.smart.match.switchHelper"
+                      format={(value) => value === 'all'}
+                      parse={(value) => (value ? 'all' : 'any')}
+                    />
+                  </Grid>
+                  <Grid item>
+                    <SmartCriteriaAutocompleteArrayInput
+                      reference="album"
+                      source="excludeAlbums"
+                      label="resources.playlist.smart.fields.excludeAlbum"
+                    />
+                  </Grid>
+                </Grid>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <SmartCriteriaAutocompleteArrayInput
-                  reference="genre"
-                  source="excludeGenres"
-                  label="resources.playlist.smart.fields.excludeGenre"
-                />
+                <Grid container direction="column" spacing={1}>
+                  <Grid item>
+                    <BooleanInput
+                      source="excludeGenresMatchMode"
+                      label="resources.playlist.smart.match.switchLabel"
+                      helperText="resources.playlist.smart.match.switchHelper"
+                      format={(value) => value === 'all'}
+                      parse={(value) => (value ? 'all' : 'any')}
+                    />
+                  </Grid>
+                  <Grid item>
+                    <SmartCriteriaAutocompleteArrayInput
+                      reference="genre"
+                      source="excludeGenres"
+                      label="resources.playlist.smart.fields.excludeGenre"
+                    />
+                  </Grid>
+                </Grid>
               </Grid>
 
               <Grid item xs={12}>

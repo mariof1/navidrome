@@ -149,6 +149,9 @@ export const parseCriteriaToForm = (criteria) => {
   const genresMatchMode = normalizeMatchMode(criteria.genresMatchMode || detectMatchMode(rules, 'genre'))
   const albumsMatchMode = normalizeMatchMode(criteria.albumsMatchMode || detectMatchMode(rules, 'album'))
   const artistsMatchMode = normalizeMatchMode(criteria.artistsMatchMode || detectMatchMode(rules, 'artist'))
+  const excludeGenresMatchMode = normalizeMatchMode(criteria.excludeGenresMatchMode)
+  const excludeAlbumsMatchMode = normalizeMatchMode(criteria.excludeAlbumsMatchMode)
+  const excludeArtistsMatchMode = normalizeMatchMode(criteria.excludeArtistsMatchMode)
 
   return {
     smart: true,
@@ -160,12 +163,15 @@ export const parseCriteriaToForm = (criteria) => {
     includeArtists: extractStrings(rules, 'artist'),
     excludeArtists: extractStrings(rules, 'artist', 'notContains'),
     includeArtistsMatchMode: artistsMatchMode,
+    excludeArtistsMatchMode,
     includeAlbums: extractStrings(rules, 'album'),
     excludeAlbums: extractStrings(rules, 'album', 'notContains'),
     includeAlbumsMatchMode: albumsMatchMode,
+    excludeAlbumsMatchMode,
     includeGenres: extractStrings(rules, 'genre'),
     excludeGenres: extractStrings(rules, 'genre', 'notContains'),
     includeGenresMatchMode: genresMatchMode,
+    excludeGenresMatchMode,
     sort: sortData.sort,
     order: criteria.order?.toLowerCase(),
     trackLimit: criteria.limit,
@@ -223,6 +229,22 @@ const addStringsWithMatchMode = (expressions, values, operator, field, matchMode
   addOrStringExpressions(expressions, normalized, operator, field)
 }
 
+const addExcludeExpressionsWithMatchMode = (expressions, values, field, matchMode) => {
+  const normalized = normalizeStrings(values)
+  if (normalized.length === 0) {
+    return
+  }
+
+  if (matchMode === MATCH_ALL) {
+    expressions.push({
+      any: normalized.map((value) => ({ notContains: { [field]: value } })),
+    })
+    return
+  }
+
+  addStringExpressions(expressions, normalized, 'notContains', field)
+}
+
 const buildRangeExpressions = (field, min, max) => {
   if (min === undefined && max === undefined) {
     return []
@@ -261,6 +283,9 @@ export const buildSmartCriteria = (formData) => {
   const artistsMatchMode = normalizeMatchMode(formData.includeArtistsMatchMode)
   const albumsMatchMode = normalizeMatchMode(formData.includeAlbumsMatchMode)
   const genresMatchMode = normalizeMatchMode(formData.includeGenresMatchMode)
+  const excludeArtistsMatchMode = normalizeMatchMode(formData.excludeArtistsMatchMode)
+  const excludeAlbumsMatchMode = normalizeMatchMode(formData.excludeAlbumsMatchMode)
+  const excludeGenresMatchMode = normalizeMatchMode(formData.excludeGenresMatchMode)
 
   const expressions = [
     ...buildRangeExpressions('duration', formData.minDuration, formData.maxDuration),
@@ -268,11 +293,11 @@ export const buildSmartCriteria = (formData) => {
   ]
 
   addStringsWithMatchMode(expressions, formData.includeArtists, 'contains', 'artist', artistsMatchMode)
-  addStringExpressions(expressions, formData.excludeArtists, 'notContains', 'artist')
+  addExcludeExpressionsWithMatchMode(expressions, formData.excludeArtists, 'artist', excludeArtistsMatchMode)
   addStringsWithMatchMode(expressions, formData.includeAlbums, 'contains', 'album', albumsMatchMode)
-  addStringExpressions(expressions, formData.excludeAlbums, 'notContains', 'album')
+  addExcludeExpressionsWithMatchMode(expressions, formData.excludeAlbums, 'album', excludeAlbumsMatchMode)
   addStringsWithMatchMode(expressions, formData.includeGenres, 'contains', 'genre', genresMatchMode)
-  addStringExpressions(expressions, formData.excludeGenres, 'notContains', 'genre')
+  addExcludeExpressionsWithMatchMode(expressions, formData.excludeGenres, 'genre', excludeGenresMatchMode)
 
   if (expressions.length === 0) {
     expressions.push({ gt: { duration: 0 } })
@@ -283,6 +308,9 @@ export const buildSmartCriteria = (formData) => {
     genresMatchMode,
     albumsMatchMode,
     artistsMatchMode,
+    excludeGenresMatchMode,
+    excludeAlbumsMatchMode,
+    excludeArtistsMatchMode,
   }
 
   if (sortField) {
@@ -309,12 +337,15 @@ export const stripSmartFormFields = (data) => {
     includeArtists,
     includeArtistsMatchMode,
     excludeArtists,
+    excludeArtistsMatchMode,
     includeAlbums,
     includeAlbumsMatchMode,
     excludeAlbums,
+    excludeAlbumsMatchMode,
     includeGenres,
     includeGenresMatchMode,
     excludeGenres,
+    excludeGenresMatchMode,
     sort,
     order,
     trackLimit,
@@ -331,12 +362,15 @@ export const stripSmartFormFields = (data) => {
     includeArtists,
     includeArtistsMatchMode,
     excludeArtists,
+    excludeArtistsMatchMode,
     includeAlbums,
     includeAlbumsMatchMode,
     excludeAlbums,
+    excludeAlbumsMatchMode,
     includeGenres,
     includeGenresMatchMode,
     excludeGenres,
+    excludeGenresMatchMode,
     sort,
     order,
     trackLimit,
