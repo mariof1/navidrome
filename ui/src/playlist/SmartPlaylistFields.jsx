@@ -19,6 +19,11 @@ const sortChoices = [
   { id: 'dateadded', name: 'resources.playlist.smart.sort.dateAdded' },
 ]
 
+const matchModeChoices = (translate) => [
+  { id: 'any', name: translate('resources.playlist.smart.match.any') },
+  { id: 'all', name: translate('resources.playlist.smart.match.all') },
+]
+
 const SmartPlaylistFields = () => {
   const translate = useTranslate()
 
@@ -83,6 +88,15 @@ const SmartPlaylistFields = () => {
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
+                <SelectInput
+                  source="includeArtistsMatchMode"
+                  label="resources.playlist.smart.match.label"
+                  choices={matchModeChoices(translate)}
+                  defaultValue="any"
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
                 <SmartCriteriaAutocompleteArrayInput
                   reference="artist"
                   source="excludeArtists"
@@ -98,6 +112,15 @@ const SmartPlaylistFields = () => {
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
+                <SelectInput
+                  source="includeAlbumsMatchMode"
+                  label="resources.playlist.smart.match.label"
+                  choices={matchModeChoices(translate)}
+                  defaultValue="any"
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
                 <SmartCriteriaAutocompleteArrayInput
                   reference="album"
                   source="excludeAlbums"
@@ -110,6 +133,15 @@ const SmartPlaylistFields = () => {
                   reference="genre"
                   source="includeGenres"
                   label="resources.playlist.smart.fields.includeGenre"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <SelectInput
+                  source="includeGenresMatchMode"
+                  label="resources.playlist.smart.match.label"
+                  choices={matchModeChoices(translate)}
+                  defaultValue="any"
+                  fullWidth
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>

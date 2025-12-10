@@ -37,8 +37,10 @@ describe('parseCriteriaToForm', () => {
     })
 
     expect(form.includeArtists).toEqual(['Artist 1'])
+    expect(form.includeArtistsMatchMode).toBe('any')
     expect(form.excludeAlbums).toEqual(['Album 1'])
     expect(form.includeGenres).toEqual(['Rock'])
+    expect(form.includeGenresMatchMode).toBe('any')
     expect(form.excludeGenres).toEqual(['Metal'])
   })
 
@@ -51,7 +53,9 @@ describe('parseCriteriaToForm', () => {
     })
 
     expect(form.includeArtists).toEqual(['Artist 1', 'Artist 2'])
+    expect(form.includeArtistsMatchMode).toBe('any')
     expect(form.includeGenres).toEqual(['Rock'])
+    expect(form.includeGenresMatchMode).toBe('any')
   })
 })
 
@@ -101,16 +105,47 @@ describe('buildSmartCriteria', () => {
     )
   })
 
-  it('requires all included genres', () => {
+  it('builds match-all expressions when requested', () => {
     const criteria = buildSmartCriteria({
       smart: true,
       includeGenres: ['Rock', 'Metal'],
+      includeGenresMatchMode: 'all',
+      includeArtists: ['Artist 1', 'Artist 2'],
+      includeArtistsMatchMode: 'all',
     })
 
-    expect(criteria.all).toEqual([
-      { contains: { genre: 'Rock' } },
-      { contains: { genre: 'Metal' } },
-    ])
+    expect(criteria.all).toEqual(
+      expect.arrayContaining([
+        { contains: { genre: ['Rock', 'Metal'] } },
+        { contains: { artist: ['Artist 1', 'Artist 2'] } },
+      ])
+    )
+    expect(criteria.genresMatchMode).toBe('all')
+    expect(criteria.artistsMatchMode).toBe('all')
+  })
+
+  it('preserves match-any and match-all modes for different fields', () => {
+    const criteria = buildSmartCriteria({
+      smart: true,
+      includeGenres: ['Rock', 'Metal'],
+      includeGenresMatchMode: 'any',
+      includeAlbums: ['Album 1', 'Album 2'],
+      includeAlbumsMatchMode: 'all',
+    })
+
+    expect(criteria.all).toEqual(
+      expect.arrayContaining([
+        {
+          any: [
+            { contains: { genre: 'Rock' } },
+            { contains: { genre: 'Metal' } },
+          ],
+        },
+        { contains: { album: ['Album 1', 'Album 2'] } },
+      ])
+    )
+    expect(criteria.genresMatchMode).toBe('any')
+    expect(criteria.albumsMatchMode).toBe('all')
   })
 
   describe('play count ranges', () => {

@@ -19,6 +19,10 @@ type Criteria struct {
 	Order  string
 	Limit  int
 	Offset int
+
+	GenresMatchMode  string
+	AlbumsMatchMode  string
+	ArtistsMatchMode string
 }
 
 func (c Criteria) OrderBy() string {
@@ -114,17 +118,23 @@ func (c Criteria) ChildPlaylistIds() []string {
 
 func (c Criteria) MarshalJSON() ([]byte, error) {
 	aux := struct {
-		All    []Expression `json:"all,omitempty"`
-		Any    []Expression `json:"any,omitempty"`
-		Sort   string       `json:"sort,omitempty"`
-		Order  string       `json:"order,omitempty"`
-		Limit  int          `json:"limit,omitempty"`
-		Offset int          `json:"offset,omitempty"`
+		All              []Expression `json:"all,omitempty"`
+		Any              []Expression `json:"any,omitempty"`
+		Sort             string       `json:"sort,omitempty"`
+		Order            string       `json:"order,omitempty"`
+		Limit            int          `json:"limit,omitempty"`
+		Offset           int          `json:"offset,omitempty"`
+		GenresMatchMode  string       `json:"genresMatchMode,omitempty"`
+		AlbumsMatchMode  string       `json:"albumsMatchMode,omitempty"`
+		ArtistsMatchMode string       `json:"artistsMatchMode,omitempty"`
 	}{
-		Sort:   c.Sort,
-		Order:  c.Order,
-		Limit:  c.Limit,
-		Offset: c.Offset,
+		Sort:             c.Sort,
+		Order:            c.Order,
+		Limit:            c.Limit,
+		Offset:           c.Offset,
+		GenresMatchMode:  c.GenresMatchMode,
+		AlbumsMatchMode:  c.AlbumsMatchMode,
+		ArtistsMatchMode: c.ArtistsMatchMode,
 	}
 	switch rules := c.Expression.(type) {
 	case Any:
@@ -139,12 +149,15 @@ func (c Criteria) MarshalJSON() ([]byte, error) {
 
 func (c *Criteria) UnmarshalJSON(data []byte) error {
 	var aux struct {
-		All    unmarshalConjunctionType `json:"all"`
-		Any    unmarshalConjunctionType `json:"any"`
-		Sort   string                   `json:"sort"`
-		Order  string                   `json:"order"`
-		Limit  int                      `json:"limit"`
-		Offset int                      `json:"offset"`
+		All              unmarshalConjunctionType `json:"all"`
+		Any              unmarshalConjunctionType `json:"any"`
+		Sort             string                   `json:"sort"`
+		Order            string                   `json:"order"`
+		Limit            int                      `json:"limit"`
+		Offset           int                      `json:"offset"`
+		GenresMatchMode  string                   `json:"genresMatchMode"`
+		AlbumsMatchMode  string                   `json:"albumsMatchMode"`
+		ArtistsMatchMode string                   `json:"artistsMatchMode"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -160,5 +173,8 @@ func (c *Criteria) UnmarshalJSON(data []byte) error {
 	c.Order = aux.Order
 	c.Limit = aux.Limit
 	c.Offset = aux.Offset
+	c.GenresMatchMode = aux.GenresMatchMode
+	c.AlbumsMatchMode = aux.AlbumsMatchMode
+	c.ArtistsMatchMode = aux.ArtistsMatchMode
 	return nil
 }
