@@ -23,11 +23,11 @@ const PodcastFormDialog = ({
   title,
 }) => {
   const translate = useTranslate()
-  const [rssUrl, setRssUrl] = useState(initialValue.rssUrl || '')
+  const [rssUrl, setRssUrl] = useState(initialValue.rssUrl || initialValue.rssURL || '')
   const [isGlobal, setIsGlobal] = useState(initialValue.isGlobal || false)
 
   useEffect(() => {
-    setRssUrl(initialValue.rssUrl || '')
+    setRssUrl(initialValue.rssUrl || initialValue.rssURL || '')
     setIsGlobal(initialValue.isGlobal || false)
   }, [initialValue, open])
 
