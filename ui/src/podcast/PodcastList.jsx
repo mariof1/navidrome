@@ -113,6 +113,14 @@ const PodcastList = () => {
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
+  const initialDialogValue = useMemo(
+    () => ({
+      rssUrl: editingChannel?.rssUrl || '',
+      isGlobal: editingChannel?.isGlobal || false,
+    }),
+    [editingChannel?.id, editingChannel?.isGlobal, editingChannel?.rssUrl],
+  )
+
   const canManageChannel = useCallback(
     (channel) => isAdmin || channel?.userId === identity?.id,
     [identity?.id, isAdmin],
@@ -353,10 +361,7 @@ const PodcastList = () => {
             ? translate('ra.action.edit')
             : translate('resources.podcast.actions.add')
         }
-        initialValue={{
-          rssUrl: editingChannel?.rssUrl || '',
-          isGlobal: editingChannel?.isGlobal || false,
-        }}
+        initialValue={initialDialogValue}
         allowGlobal={canManageChannel(editingChannel || { userId: identity?.id })}
         saving={saving}
         onClose={() => {
