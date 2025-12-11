@@ -74,4 +74,34 @@ var _ = Describe("PodcastRepository", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(saved.Description).To(Equal(description))
 	})
+
+	It("deletes channels and their episodes respecting foreign keys", func() {
+		channel := model.PodcastChannel{
+			Title:  "Deletable",
+			RSSURL: "https://example.com/delete",
+			UserID: "userid",
+		}
+
+		Expect(repo.CreateChannel(&channel)).To(Succeed())
+
+		episodes := model.PodcastEpisodes{{
+			GUID:        "guid-delete",
+			Title:       "Episode to delete",
+			AudioURL:    "https://example.com/audio.mp3",
+			MimeType:    "audio/mpeg",
+			Duration:    10,
+			PublishedAt: time.Now(),
+		}}
+
+		Expect(repo.SaveEpisodes(channel.ID, episodes)).To(Succeed())
+
+		Expect(repo.DeleteChannel(channel.ID)).To(Succeed())
+
+		_, err := repo.GetChannel(channel.ID)
+		Expect(err).To(MatchError(model.ErrNotFound))
+
+		savedEpisodes, err := repo.ListEpisodes(channel.ID)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(savedEpisodes).To(BeEmpty())
+	})
 })
