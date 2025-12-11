@@ -19,6 +19,7 @@ func buildUserResponse(user model.User) responses.User {
 		Email:             user.Email,
 		StreamRole:        true,
 		ScrobblingEnabled: true,
+		PodcastRole:       true,
 		DownloadRole:      conf.Server.EnableDownloads,
 		ShareRole:         conf.Server.EnableSharing,
 		Folder:            slice.Map(user.Libraries, func(lib model.Library) int32 { return int32(lib.ID) }),
