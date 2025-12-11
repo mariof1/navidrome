@@ -313,7 +313,9 @@
       "notifications": {
         "loadError": "Could not load podcasts.",
         "createError": "Could not add podcast.",
-        "created": "Podcast added successfully."
+        "created": "Podcast added successfully.",
+        "updated": "Podcast details saved.",
+        "deleted": "Podcast removed."
       }
     },
     "share": {
