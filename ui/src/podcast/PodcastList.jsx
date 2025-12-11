@@ -37,6 +37,7 @@ import HtmlDescription from './HtmlDescription'
 import {
   createPodcastChannel,
   deletePodcastChannel,
+  getPodcastChannel,
   listPodcasts,
   updatePodcastChannel,
 } from './api'
@@ -136,12 +137,38 @@ const PodcastList = () => {
     loadChannels()
   }, [loadChannels])
 
+  useEffect(() => {
+    if (!dialogOpen || !editingChannel || editingChannel.rssUrl) {
+      return
+    }
+
+    let isActive = true
+
+    getPodcastChannel(editingChannel.id)
+      .then((channel) => {
+        if (!isActive) return
+        setEditingChannel((prev) =>
+          prev?.id === channel.id ? { ...prev, ...channel } : prev,
+        )
+      })
+      .catch((err) => {
+        notify(
+          err?.message || translate('resources.podcast.notifications.loadError'),
+          { type: 'warning' },
+        )
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [dialogOpen, editingChannel, notify, translate])
+
   const handleSave = async ({ rssUrl, isGlobal }) => {
     setSaving(true)
     try {
       if (editingChannel) {
         await updatePodcastChannel(editingChannel.id, { rssUrl, isGlobal })
-        notify('ra.notification.updated', { type: 'info' })
+        notify('resources.podcast.notifications.updated', { type: 'info' })
       } else {
         await createPodcastChannel({ rssUrl, isGlobal })
         notify('resources.podcast.notifications.created', { type: 'info' })
@@ -164,7 +191,7 @@ const PodcastList = () => {
     setSaving(true)
     try {
       await deletePodcastChannel(deleteTarget.id)
-      notify('ra.notification.deleted', { type: 'info' })
+      notify('resources.podcast.notifications.deleted', { type: 'info' })
       loadChannels()
     } catch (err) {
       notify(
