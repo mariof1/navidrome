@@ -29,7 +29,7 @@ const PodcastFormDialog = ({
   useEffect(() => {
     setRssUrl(initialValue.rssUrl || initialValue.rssURL || '')
     setIsGlobal(initialValue.isGlobal || false)
-  }, [initialValue, open])
+  }, [initialValue.isGlobal, initialValue.rssURL, initialValue.rssUrl, open])
 
   const handleSubmit = () => onSave({ rssUrl, isGlobal })
 
