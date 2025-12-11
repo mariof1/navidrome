@@ -54,11 +54,10 @@ func (r *sqlPodcastRepository) UpdateChannel(channel *model.PodcastChannel) erro
 }
 
 func (r *sqlPodcastRepository) DeleteChannel(id string) error {
-	if err := r.delete(Eq{"id": id}); err != nil {
+	if _, err := r.executeSQL(Delete("podcast_episode").Where(Eq{"channel_id": id})); err != nil {
 		return err
 	}
-	_, err := r.executeSQL(Delete("podcast_episode").Where(Eq{"channel_id": id}))
-	return err
+	return r.delete(Eq{"id": id})
 }
 
 func (r *sqlPodcastRepository) GetChannel(id string) (*model.PodcastChannel, error) {
