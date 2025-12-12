@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   CardContent,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
@@ -109,6 +110,7 @@ const PodcastShow = () => {
   const [channel, setChannel] = useState()
   const [episodes, setEpisodes] = useState([])
   const [loading, setLoading] = useState(true)
+  const [expandedEpisodes, setExpandedEpisodes] = useState({})
   const [dialogOpen, setDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -228,19 +230,25 @@ const PodcastShow = () => {
                 className={classes.episodeText}
                 primary={episode.title}
                 secondary={
-                  <div className={classes.episodeDetails}>
-                    <Typography component="div" variant="body2" color="textPrimary">
-                      {episode.publishedAt
-                        ? new Date(episode.publishedAt).toLocaleDateString()
-                        : ''}
-                      {episode.duration
-                        ? ` • ${translate('resources.song.fields.duration')}: ${Math.round(
-                            episode.duration / 60,
-                          )}m`
-                        : ''}
-                    </Typography>
-                    <HtmlDescription value={episode.description} />
-                  </div>
+                  <Button
+                    size="small"
+                    color="primary"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setExpandedEpisodes((prev) => ({
+                        ...prev,
+                        [episode.id]: !prev[episode.id],
+                      }))
+                    }}
+                  >
+                    {expandedEpisodes[episode.id]
+                      ? translate('resources.podcast.actions.hideDetails', {
+                          _: 'Hide details',
+                        })
+                      : translate('resources.podcast.actions.viewDetails', {
+                          _: 'View details',
+                        })}
+                  </Button>
                 }
                 secondaryTypographyProps={{ component: 'div' }}
               />
@@ -254,12 +262,27 @@ const PodcastShow = () => {
                 <PlayArrowIcon />
               </IconButton>
             </ListItem>
+            <Collapse in={expandedEpisodes[episode.id]} timeout="auto" unmountOnExit>
+              <Box pl={11} pr={2} pb={2} className={classes.episodeDetails}>
+                <Typography component="div" variant="body2" color="textPrimary">
+                  {episode.publishedAt
+                    ? new Date(episode.publishedAt).toLocaleDateString()
+                    : ''}
+                  {episode.duration
+                    ? ` • ${translate('resources.song.fields.duration')}: ${Math.round(
+                        episode.duration / 60,
+                      )}m`
+                    : ''}
+                </Typography>
+                <HtmlDescription value={episode.description} />
+              </Box>
+            </Collapse>
             <Divider variant="inset" component="li" />
           </React.Fragment>
         ))}
       </List>
     )
-  }, [channel?.imageUrl, classes, episodes, handlePlay, translate])
+  }, [channel?.imageUrl, classes, episodes, expandedEpisodes, handlePlay, translate])
 
   if (loading) {
     return (
