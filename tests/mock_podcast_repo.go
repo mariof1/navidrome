@@ -12,6 +12,7 @@ type MockPodcastRepo struct {
 	model.PodcastRepository
 	Channels map[string]*model.PodcastChannel
 	Episodes map[string]model.PodcastEpisodes
+	Statuses map[string]map[string]bool
 	Err      bool
 }
 
@@ -21,6 +22,9 @@ func (m *MockPodcastRepo) ensureMaps() {
 	}
 	if m.Episodes == nil {
 		m.Episodes = map[string]model.PodcastEpisodes{}
+	}
+	if m.Statuses == nil {
+		m.Statuses = map[string]map[string]bool{}
 	}
 }
 
@@ -114,4 +118,30 @@ func (m *MockPodcastRepo) ListEpisodes(channelID string) (model.PodcastEpisodes,
 	}
 	m.ensureMaps()
 	return m.Episodes[channelID], nil
+}
+
+func (m *MockPodcastRepo) SetEpisodeStatus(userID, episodeID string, watched bool) error {
+	if m.Err {
+		return errors.New("error")
+	}
+	m.ensureMaps()
+	if _, ok := m.Statuses[userID]; !ok {
+		m.Statuses[userID] = map[string]bool{}
+	}
+	m.Statuses[userID][episodeID] = watched
+	return nil
+}
+
+func (m *MockPodcastRepo) ListEpisodeStatuses(userID string, episodeIDs []string) (map[string]bool, error) {
+	if m.Err {
+		return nil, errors.New("error")
+	}
+	m.ensureMaps()
+	res := map[string]bool{}
+	for _, id := range episodeIDs {
+		if watched, ok := m.Statuses[userID][id]; ok {
+			res[id] = watched
+		}
+	}
+	return res, nil
 }

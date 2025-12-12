@@ -43,6 +43,8 @@ const mapToAudioLists = (item) => {
       musicSrc: item.streamUrl,
       cover: item.cover,
       isRadio: true,
+      isPodcast: item.isPodcast,
+      channelId: item.channelId,
     }
   }
 
@@ -85,6 +87,8 @@ const mapToAudioLists = (item) => {
       },
       300,
     ),
+    isPodcast: item.isPodcast,
+    channelId: item.channelId,
   }
 }
 

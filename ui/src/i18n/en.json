@@ -299,7 +299,9 @@
       "actions": {
         "add": "Add podcast",
         "save": "Add",
-        "visitSite": "Visit website"
+        "visitSite": "Visit website",
+        "markWatched": "Mark as watched",
+        "markUnwatched": "Mark as unwatched"
       },
       "labels": {
         "shared": "Shared"

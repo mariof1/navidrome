@@ -34,6 +34,15 @@ type PodcastEpisode struct {
 	ImageURL    string    `structs:"image_url" json:"imageUrl"`
 	CreatedAt   time.Time `structs:"created_at" json:"createdAt"`
 	UpdatedAt   time.Time `structs:"updated_at" json:"updatedAt"`
+	Watched     bool      `structs:"-" json:"watched,omitempty"`
+}
+
+// PodcastEpisodeStatus represents the user's status for an episode.
+type PodcastEpisodeStatus struct {
+	EpisodeID string    `structs:"episode_id" json:"episodeId"`
+	UserID    string    `structs:"user_id" json:"userId"`
+	Watched   bool      `structs:"watched" json:"watched"`
+	UpdatedAt time.Time `structs:"updated_at" json:"updatedAt"`
 }
 
 // PodcastEpisodes helper slice.
@@ -51,4 +60,6 @@ type PodcastRepository interface {
 	SaveEpisodes(channelID string, episodes PodcastEpisodes) error
 	ListEpisodes(channelID string) (PodcastEpisodes, error)
 	GetEpisode(id string) (*PodcastEpisode, error)
+	SetEpisodeStatus(userID, episodeID string, watched bool) error
+	ListEpisodeStatuses(userID string, episodeIDs []string) (map[string]bool, error)
 }

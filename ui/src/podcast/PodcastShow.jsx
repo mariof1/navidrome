@@ -25,6 +25,8 @@ import LaunchIcon from '@material-ui/icons/Launch'
 import DeleteIcon from '@material-ui/icons/Delete'
 import EditIcon from '@material-ui/icons/Edit'
 import PlayArrowIcon from '@material-ui/icons/PlayArrow'
+import VisibilityIcon from '@material-ui/icons/Visibility'
+import VisibilityOffIcon from '@material-ui/icons/VisibilityOff'
 import { Title, useGetIdentity, useNotify, usePermissions, useRedirect, useTranslate } from 'react-admin'
 import { useDispatch } from 'react-redux'
 import { useParams } from 'react-router-dom'
@@ -35,6 +37,7 @@ import {
   deletePodcastChannel,
   getPodcastChannel,
   listPodcastEpisodes,
+  setEpisodeWatched,
   updatePodcastChannel,
 } from './api'
 
@@ -191,10 +194,45 @@ const PodcastShow = () => {
           cover: episode.imageUrl || channel?.imageUrl,
           streamUrl: episode.audioUrl,
           isRadio: true,
+          isPodcast: true,
+          channelId: channel?.id,
         }),
       )
     },
     [channel?.imageUrl, channel?.title, dispatch],
+  )
+
+  const toggleWatched = useCallback(
+    async (episode, watched) => {
+      setEpisodes((prev) =>
+        prev.map((item) =>
+          item.id === episode.id
+            ? {
+                ...item,
+                watched,
+              }
+            : item,
+        ),
+      )
+      try {
+        await setEpisodeWatched(channel.id, episode.id, watched)
+      } catch (err) {
+        setEpisodes((prev) =>
+          prev.map((item) =>
+            item.id === episode.id
+              ? {
+                  ...item,
+                  watched: !watched,
+                }
+              : item,
+          ),
+        )
+        notify(err?.message || translate('resources.podcast.notifications.loadError'), {
+          type: 'warning',
+        })
+      }
+    },
+    [channel?.id, notify, translate],
   )
 
   const episodesList = useMemo(() => {
@@ -261,6 +299,23 @@ const PodcastShow = () => {
               >
                 <PlayArrowIcon />
               </IconButton>
+              <Tooltip
+                title={
+                  episode.watched
+                    ? translate('resources.podcast.actions.markUnwatched')
+                    : translate('resources.podcast.actions.markWatched')
+                }
+              >
+                <IconButton
+                  edge="end"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleWatched(episode, !episode.watched)
+                  }}
+                >
+                  {episode.watched ? <VisibilityIcon color="primary" /> : <VisibilityOffIcon />}
+                </IconButton>
+              </Tooltip>
             </ListItem>
             <Collapse in={expandedEpisodes[episode.id]} timeout="auto" unmountOnExit>
               <Box pl={11} pr={2} pb={2} className={classes.episodeDetails}>

@@ -1,6 +1,7 @@
 package nativeapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -34,6 +35,7 @@ func (api *Router) addPodcastRoute(r chi.Router) {
 			r.Put("/", api.updatePodcast())
 			r.Delete("/", api.deletePodcast())
 			r.Get("/episodes", api.listPodcastEpisodes())
+			r.Put("/episodes/{episodeId}/watched", api.setEpisodeWatched())
 		})
 	})
 }
@@ -131,6 +133,9 @@ func (api *Router) getPodcast() http.HandlerFunc {
 			http.Error(w, "podcast not found", http.StatusNotFound)
 			return
 		}
+
+		repo := api.ds.Podcast(ctx)
+		channel.Episodes = applyWatchedStatuses(ctx, repo, user, channel.Episodes)
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(channel); err != nil {
@@ -262,12 +267,75 @@ func (api *Router) listPodcastEpisodes() http.HandlerFunc {
 			return
 		}
 
+		episodes = applyWatchedStatuses(ctx, repo, user, episodes)
+
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(episodes); err != nil {
 			log.Error(ctx, "Error encoding podcast episodes", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
+}
+
+type episodeStatusPayload struct {
+	Watched bool `json:"watched"`
+}
+
+func (api *Router) setEpisodeWatched() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		user, _ := request.UserFrom(ctx)
+		channelID := chi.URLParam(r, "id")
+		episodeID := chi.URLParam(r, "episodeId")
+		repo := api.ds.Podcast(ctx)
+
+		channel, err := repo.GetChannel(channelID)
+		if err != nil {
+			status := http.StatusInternalServerError
+			if errors.Is(err, model.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			http.Error(w, err.Error(), status)
+			return
+		}
+
+		if !canAccessPodcast(channel, user) {
+			http.Error(w, "podcast not found", http.StatusNotFound)
+			return
+		}
+
+		var payload episodeStatusPayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if err := repo.SetEpisodeStatus(user.ID, episodeID, payload.Watched); err != nil {
+			log.Error(ctx, "Error updating episode status", "episodeId", episodeID, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func applyWatchedStatuses(ctx context.Context, repo model.PodcastRepository, user model.User, episodes model.PodcastEpisodes) model.PodcastEpisodes {
+	ids := make([]string, 0, len(episodes))
+	for _, ep := range episodes {
+		ids = append(ids, ep.ID)
+	}
+	statuses, err := repo.ListEpisodeStatuses(user.ID, ids)
+	if err != nil {
+		log.Error(ctx, "Error loading episode statuses", err)
+		return episodes
+	}
+	for i := range episodes {
+		if watched, ok := statuses[episodes[i].ID]; ok {
+			episodes[i].Watched = watched
+		}
+	}
+	return episodes
 }
 
 func canAccessPodcast(channel *model.PodcastChannel, user model.User) bool {
