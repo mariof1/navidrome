@@ -30,6 +30,7 @@ import locale from './locale'
 import { keyMap } from '../hotkeys'
 import keyHandlers from './keyHandlers'
 import { calculateGain } from '../utils/calculateReplayGain'
+import { setEpisodeWatched } from '../podcast/api'
 
 const Player = () => {
   const theme = useCurrentTheme()
@@ -257,6 +258,9 @@ const Player = () => {
       setScrobbled(false)
       setStartTime(null)
       dispatch(currentPlaying(info))
+      if (info?.song?.isPodcast && info.trackId) {
+        setEpisodeWatched(info.song.channelId, info.trackId, true).catch(() => {})
+      }
       dataProvider
         .getOne('keepalive', { id: info.trackId })
         // eslint-disable-next-line no-console

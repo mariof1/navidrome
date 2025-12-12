@@ -20,6 +20,8 @@ type PodcastRepository interface {
 	SaveEpisodes(channelID string, episodes model.PodcastEpisodes) error
 	ListEpisodes(channelID string) (model.PodcastEpisodes, error)
 	GetEpisode(id string) (*model.PodcastEpisode, error)
+	SetEpisodeStatus(userID, episodeID string, watched bool) error
+	ListEpisodeStatuses(userID string, episodeIDs []string) (map[string]bool, error)
 }
 
 type sqlPodcastRepository struct {
@@ -131,4 +133,36 @@ func (r *sqlPodcastRepository) GetEpisode(id string) (*model.PodcastEpisode, err
 		return nil, err
 	}
 	return &episode, nil
+}
+
+func (r *sqlPodcastRepository) SetEpisodeStatus(userID, episodeID string, watched bool) error {
+	now := time.Now()
+	sq := Insert("podcast_episode_status").
+		Columns("user_id", "episode_id", "watched", "updated_at").
+		Values(userID, episodeID, watched, now).
+		Suffix("on conflict(user_id, episode_id) do update set watched=excluded.watched, updated_at=excluded.updated_at")
+	_, err := r.executeSQL(sq)
+	return err
+}
+
+func (r *sqlPodcastRepository) ListEpisodeStatuses(userID string, episodeIDs []string) (map[string]bool, error) {
+	if len(episodeIDs) == 0 {
+		return map[string]bool{}, nil
+	}
+	rows, err := r.query(Select("episode_id", "watched").From("podcast_episode_status").
+		Where(And{Eq{"user_id": userID}, Eq{"episode_id": episodeIDs}}))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	statuses := make(map[string]bool)
+	for rows.Next() {
+		var episodeID string
+		var watched bool
+		if err := rows.Scan(&episodeID, &watched); err != nil {
+			return nil, err
+		}
+		statuses[episodeID] = watched
+	}
+	return statuses, nil
 }

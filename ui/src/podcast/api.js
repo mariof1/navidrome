@@ -30,3 +30,9 @@ export const deletePodcastChannel = (id) =>
   httpClient(`${REST_URL}/podcast/${id}`, { method: 'DELETE' }).then(({ json }) =>
     normalizeResponse(json),
   )
+
+export const setEpisodeWatched = (channelId, episodeId, watched) =>
+  httpClient(`${REST_URL}/podcast/${channelId}/episodes/${episodeId}/watched`, {
+    method: 'PUT',
+    body: JSON.stringify({ watched }),
+  })
