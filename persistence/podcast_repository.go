@@ -149,20 +149,21 @@ func (r *sqlPodcastRepository) ListEpisodeStatuses(userID string, episodeIDs []s
 	if len(episodeIDs) == 0 {
 		return map[string]bool{}, nil
 	}
-	rows, err := r.query(Select("episode_id", "watched").From("podcast_episode_status").
-		Where(And{Eq{"user_id": userID}, Eq{"episode_id": episodeIDs}}))
-	if err != nil {
+	var results []struct {
+		EpisodeID string `db:"episode_id"`
+		Watched   bool   `db:"watched"`
+	}
+	sq := Select("episode_id", "watched").From("podcast_episode_status").
+		Where(And{Eq{"user_id": userID}, Eq{"episode_id": episodeIDs}})
+	if err := r.queryAll(sq, &results); err != nil {
+		if err == model.ErrNotFound {
+			return map[string]bool{}, nil
+		}
 		return nil, err
 	}
-	defer rows.Close()
-	statuses := make(map[string]bool)
-	for rows.Next() {
-		var episodeID string
-		var watched bool
-		if err := rows.Scan(&episodeID, &watched); err != nil {
-			return nil, err
-		}
-		statuses[episodeID] = watched
+	statuses := make(map[string]bool, len(results))
+	for _, row := range results {
+		statuses[row.EpisodeID] = row.Watched
 	}
 	return statuses, nil
 }
