@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useDispatch } from 'react-redux'
 import {
   Box,
   Button,
@@ -39,8 +40,10 @@ import {
   deletePodcastChannel,
   getPodcastChannel,
   listPodcasts,
+  listContinueListening,
   updatePodcastChannel,
 } from './api'
+import { setTrack } from '../actions'
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -106,6 +109,7 @@ const PodcastList = () => {
   const { permissions } = usePermissions()
   const { identity } = useGetIdentity()
   const isAdmin = permissions === 'admin'
+  const dispatch = useDispatch()
   const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -116,9 +120,8 @@ const PodcastList = () => {
   const initialDialogValue = useMemo(
     () => ({
       rssUrl: editingChannel?.rssUrl || '',
-      isGlobal: editingChannel?.isGlobal || false,
     }),
-    [editingChannel?.id, editingChannel?.isGlobal, editingChannel?.rssUrl],
+    [editingChannel?.rssUrl],
   )
 
   const canManageChannel = useCallback(
@@ -171,14 +174,14 @@ const PodcastList = () => {
     }
   }, [dialogOpen, editingChannel, notify, translate])
 
-  const handleSave = async ({ rssUrl, isGlobal }) => {
+  const handleSave = async ({ rssUrl }) => {
     setSaving(true)
     try {
       if (editingChannel) {
-        await updatePodcastChannel(editingChannel.id, { rssUrl, isGlobal })
+        await updatePodcastChannel(editingChannel.id, { rssUrl })
         notify('resources.podcast.notifications.updated', { type: 'info' })
       } else {
-        await createPodcastChannel({ rssUrl, isGlobal })
+        await createPodcastChannel({ rssUrl })
         notify('resources.podcast.notifications.created', { type: 'info' })
       }
       setDialogOpen(false)
@@ -212,8 +215,43 @@ const PodcastList = () => {
     }
   }
 
-  const handleCardClick = (id) => {
-    redirect(`/podcast/${id}/show`)
+  const handleCardClick = useCallback(
+    (id) => {
+      redirect(`/podcast/${id}/show`)
+    },
+    [redirect],
+  )
+
+  const handleContinueListening = async () => {
+    try {
+      const items = await listContinueListening(1)
+      if (!items?.length) {
+        notify(translate('resources.podcast.messages.noContinue'), { type: 'info' })
+        return
+      }
+      const item = items[0]
+      const episode = item.episode
+      const channel = item.channel
+      dispatch(
+        setTrack({
+          id: episode.id,
+          title: episode.title,
+          artist: channel?.title,
+          album: channel?.title,
+          duration: episode.duration,
+          cover: episode.imageUrl || channel?.imageUrl,
+          streamUrl: episode.audioUrl,
+          isRadio: true,
+          isPodcast: true,
+          channelId: channel?.id,
+          resumePosition: item.position || 0,
+        }),
+      )
+    } catch (err) {
+      notify(err?.message || translate('resources.podcast.notifications.loadError'), {
+        type: 'warning',
+      })
+    }
   }
 
   const content = useMemo(() => {
@@ -293,13 +331,6 @@ const PodcastList = () => {
                       className={classes.description}
                     />
                     <div className={classes.chips}>
-                      {channel.isGlobal && (
-                        <Chip
-                          color="primary"
-                          size="small"
-                          label={translate('resources.podcast.labels.shared')}
-                        />
-                      )}
                       {channel.lastRefreshedAt && (
                         <Chip
                           size="small"
@@ -336,6 +367,9 @@ const PodcastList = () => {
           <IconButton aria-label={translate('ra.action.refresh')} onClick={loadChannels}>
             <RefreshIcon />
           </IconButton>
+          <Button color="default" variant="outlined" onClick={handleContinueListening}>
+            {translate('resources.podcast.actions.continueListening')}
+          </Button>
           <Button
             color="primary"
             variant="contained"
@@ -362,7 +396,6 @@ const PodcastList = () => {
             : translate('resources.podcast.actions.add')
         }
         initialValue={initialDialogValue}
-        allowGlobal={canManageChannel(editingChannel || { userId: identity?.id })}
         saving={saving}
         onClose={() => {
           setDialogOpen(false)

@@ -11,7 +11,7 @@ type PodcastChannel struct {
 	Description     string     `structs:"description" json:"description"`
 	ImageURL        string     `structs:"image_url" json:"imageUrl"`
 	UserID          string     `structs:"user_id" json:"userId"`
-	IsGlobal        bool       `structs:"is_global" json:"isGlobal"`
+	IsGlobal        bool       `structs:"is_global" json:"-"`
 	CreatedAt       time.Time  `structs:"created_at" json:"createdAt"`
 	UpdatedAt       time.Time  `structs:"updated_at" json:"updatedAt"`
 	LastRefreshedAt *time.Time `structs:"last_refreshed_at" json:"lastRefreshedAt"`
@@ -45,6 +45,15 @@ type PodcastEpisodeStatus struct {
 	UpdatedAt time.Time `structs:"updated_at" json:"updatedAt"`
 }
 
+// PodcastContinueItem represents an in-progress episode for a user.
+type PodcastContinueItem struct {
+	Channel   PodcastChannel `json:"channel"`
+	Episode   PodcastEpisode `json:"episode"`
+	Position  int64          `json:"position"`
+	Duration  int64          `json:"duration"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+}
+
 // PodcastEpisodes helper slice.
 type PodcastEpisodes []PodcastEpisode
 
@@ -56,10 +65,13 @@ type PodcastRepository interface {
 	UpdateChannel(channel *PodcastChannel) error
 	DeleteChannel(id string) error
 	GetChannel(id string) (*PodcastChannel, error)
-	ListVisible(userID string, includeGlobal bool) (PodcastChannels, error)
+	ListVisible(userID string) (PodcastChannels, error)
 	SaveEpisodes(channelID string, episodes PodcastEpisodes) error
 	ListEpisodes(channelID string) (PodcastEpisodes, error)
 	GetEpisode(id string) (*PodcastEpisode, error)
 	SetEpisodeStatus(userID, episodeID string, watched bool) error
 	ListEpisodeStatuses(userID string, episodeIDs []string) (map[string]bool, error)
+	SetEpisodeProgress(userID, episodeID string, position, duration int64) error
+	GetEpisodeProgress(userID, episodeID string) (position, duration int64, updatedAt time.Time, err error)
+	ListContinueListening(userID string, limit int) ([]PodcastContinueItem, error)
 }

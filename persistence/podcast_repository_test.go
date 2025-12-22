@@ -13,6 +13,14 @@ import (
 var _ = Describe("PodcastRepository", func() {
 	var repo model.PodcastRepository
 
+	savedEpisodesOrEmpty := func(repo model.PodcastRepository, channelID string) model.PodcastEpisodes {
+		eps, err := repo.ListEpisodes(channelID)
+		if err != nil {
+			return model.PodcastEpisodes{}
+		}
+		return eps
+	}
+
 	BeforeEach(func() {
 		ctx := log.NewContext(GinkgoT().Context())
 		ctx = request.WithUser(ctx, model.User{ID: "userid", UserName: "userid", IsAdmin: true})
@@ -28,7 +36,6 @@ var _ = Describe("PodcastRepository", func() {
 			Description:     "A test feed",
 			ImageURL:        "https://example.com/image.jpg",
 			UserID:          "userid",
-			IsGlobal:        true,
 			LastRefreshedAt: &now,
 		}
 
@@ -51,7 +58,12 @@ var _ = Describe("PodcastRepository", func() {
 		savedChannel, err := repo.GetChannel(channel.ID)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(savedChannel.Title).To(Equal(channel.Title))
-		Expect(savedChannel.IsGlobal).To(BeTrue())
+
+		Expect(repo.SetEpisodeProgress("userid", savedEpisodesOrEmpty(repo, channel.ID)[0].ID, 42, 123)).To(Succeed())
+		pos, dur, _, err := repo.GetEpisodeProgress("userid", savedEpisodesOrEmpty(repo, channel.ID)[0].ID)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(pos).To(Equal(int64(42)))
+		Expect(dur).To(Equal(int64(123)))
 
 		savedEpisodes, err := repo.ListEpisodes(channel.ID)
 		Expect(err).NotTo(HaveOccurred())

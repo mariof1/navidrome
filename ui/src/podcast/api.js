@@ -36,3 +36,24 @@ export const setEpisodeWatched = (channelId, episodeId, watched) =>
     method: 'PUT',
     body: JSON.stringify({ watched }),
   })
+
+export const setEpisodeProgress = (channelId, episodeId, position, duration) =>
+  httpClient(`${REST_URL}/podcast/${channelId}/episodes/${episodeId}/progress`, {
+    method: 'PUT',
+    body: JSON.stringify({ position, duration }),
+  })
+
+export const getEpisodeProgress = (channelId, episodeId) =>
+  httpClient(`${REST_URL}/podcast/${channelId}/episodes/${episodeId}/progress`).then(
+    ({ json }) => normalizeResponse(json),
+  )
+
+export const listContinueListening = (limit = 20) =>
+  httpClient(`${REST_URL}/podcast/continue?limit=${limit}`).then(({ json }) =>
+    normalizeResponse(json),
+  )
+
+export const searchApplePodcasts = (term, limit = 25) =>
+  httpClient(
+    `${REST_URL}/podcast/search?term=${encodeURIComponent(term)}&limit=${limit}`,
+  ).then(({ json }) => normalizeResponse(json))

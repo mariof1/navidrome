@@ -65,7 +65,7 @@ func NewService(repo model.PodcastRepository) *Service {
 	return &Service{repo: repo, refreshInterval: time.Hour, httpClient: http.DefaultClient}
 }
 
-func (s *Service) AddChannel(ctx context.Context, url string, owner *model.User, isGlobal bool) (*model.PodcastChannel, error) {
+func (s *Service) AddChannel(ctx context.Context, url string, owner *model.User) (*model.PodcastChannel, error) {
 	if url == "" {
 		return nil, errors.New("rss url required")
 	}
@@ -81,7 +81,7 @@ func (s *Service) AddChannel(ctx context.Context, url string, owner *model.User,
 		Description:     feed.Description,
 		ImageURL:        feed.ImageURL,
 		UserID:          owner.ID,
-		IsGlobal:        isGlobal,
+		IsGlobal:        false,
 		LastRefreshedAt: &now,
 	}
 	if err := s.repo.CreateChannel(channel); err != nil {
@@ -95,7 +95,7 @@ func (s *Service) AddChannel(ctx context.Context, url string, owner *model.User,
 	return channel, nil
 }
 
-func (s *Service) UpdateChannel(ctx context.Context, channelID string, url string, isGlobal bool) (*model.PodcastChannel, error) {
+func (s *Service) UpdateChannel(ctx context.Context, channelID string, url string) (*model.PodcastChannel, error) {
 	channel, err := s.repo.GetChannel(channelID)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (s *Service) UpdateChannel(ctx context.Context, channelID string, url strin
 		url = channel.RSSURL
 	}
 
-	channel.IsGlobal = isGlobal
+	channel.IsGlobal = false
 
 	var episodes model.PodcastEpisodes
 	if url != channel.RSSURL {
@@ -175,7 +175,7 @@ func (s *Service) ShouldRefresh(channel *model.PodcastChannel) bool {
 }
 
 func (s *Service) ListChannelsForUser(user *model.User) (model.PodcastChannels, error) {
-	channels, err := s.repo.ListVisible(user.ID, true)
+	channels, err := s.repo.ListVisible(user.ID)
 	if err != nil {
 		return nil, err
 	}

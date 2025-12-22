@@ -35,6 +35,7 @@ import PodcastFormDialog from './PodcastFormDialog'
 import HtmlDescription from './HtmlDescription'
 import {
   deletePodcastChannel,
+  getEpisodeProgress,
   getPodcastChannel,
   listPodcastEpisodes,
   setEpisodeWatched,
@@ -144,13 +145,13 @@ const PodcastShow = () => {
     loadData()
   }, [loadData])
 
-  const handleSave = async ({ rssUrl, isGlobal }) => {
+  const handleSave = async ({ rssUrl }) => {
     if (!channel) return
     const url = (rssUrl || '').trim() || channel?.rssUrl
     if (!url) return
     setSaving(true)
     try {
-      await updatePodcastChannel(channel.id, { rssUrl: url, isGlobal })
+      await updatePodcastChannel(channel.id, { rssUrl: url })
       notify('ra.notification.updated', { type: 'info' })
       setDialogOpen(false)
       loadData()
@@ -183,7 +184,15 @@ const PodcastShow = () => {
   }
 
   const handlePlay = useCallback(
-    (episode) => {
+    async (episode) => {
+      let resumePosition = 0
+      try {
+        const progress = await getEpisodeProgress(channel?.id, episode.id)
+        resumePosition = progress?.position || 0
+      } catch (_) {
+        // Ignore progress lookup errors
+      }
+
       dispatch(
         setTrack({
           id: episode.id,
@@ -196,10 +205,11 @@ const PodcastShow = () => {
           isRadio: true,
           isPodcast: true,
           channelId: channel?.id,
+          resumePosition,
         }),
       )
     },
-    [channel?.imageUrl, channel?.title, dispatch],
+    [channel?.id, channel?.imageUrl, channel?.title, dispatch],
   )
 
   const toggleWatched = useCallback(
@@ -337,7 +347,7 @@ const PodcastShow = () => {
         ))}
       </List>
     )
-  }, [channel?.imageUrl, classes, episodes, expandedEpisodes, handlePlay, translate])
+  }, [channel?.imageUrl, classes, episodes, expandedEpisodes, handlePlay, toggleWatched, translate])
 
   if (loading) {
     return (
@@ -422,8 +432,7 @@ const PodcastShow = () => {
       <PodcastFormDialog
         open={dialogOpen}
         title={translate('ra.action.edit')}
-        initialValue={{ rssUrl: channel.rssUrl || '', isGlobal: channel.isGlobal || false }}
-        allowGlobal={canManage}
+        initialValue={{ rssUrl: channel.rssUrl || '' }}
         saving={saving}
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}

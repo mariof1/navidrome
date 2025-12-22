@@ -290,25 +290,26 @@
     "podcast": {
       "name": "Podcast |||| Podcasts",
       "fields": {
+        "searchApple": "Search Apple Podcasts",
         "rssUrl": "Podcast RSS URL",
-        "isGlobal": "Make available to all users",
         "lastRefreshedAt": "Last refreshed",
         "episodeCount": "Episodes",
         "episodes": "Episodes"
       },
       "actions": {
         "add": "Add podcast",
+        "search": "Search",
         "save": "Add",
+        "continueListening": "Continue listening",
         "visitSite": "Visit website",
         "markWatched": "Mark as watched",
         "markUnwatched": "Mark as unwatched"
       },
-      "labels": {
-        "shared": "Shared"
-      },
       "messages": {
         "empty": "No podcasts yet. Add your first feed to get started!",
-        "adminOnly": "Only administrators can share podcasts with all users.",
+        "searching": "Searching…",
+        "noSearchResults": "No results",
+        "noContinue": "Nothing to continue.",
         "noEpisodes": "No episodes available for this podcast.",
         "loading": "Loading podcast..."
       },

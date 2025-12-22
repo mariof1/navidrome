@@ -13,6 +13,11 @@ type MockPodcastRepo struct {
 	Channels map[string]*model.PodcastChannel
 	Episodes map[string]model.PodcastEpisodes
 	Statuses map[string]map[string]bool
+	Progress map[string]map[string]struct {
+		Position  int64
+		Duration  int64
+		UpdatedAt time.Time
+	}
 	Err      bool
 }
 
@@ -25,6 +30,13 @@ func (m *MockPodcastRepo) ensureMaps() {
 	}
 	if m.Statuses == nil {
 		m.Statuses = map[string]map[string]bool{}
+	}
+	if m.Progress == nil {
+		m.Progress = map[string]map[string]struct {
+			Position  int64
+			Duration  int64
+			UpdatedAt time.Time
+		}{}
 	}
 }
 
@@ -77,14 +89,14 @@ func (m *MockPodcastRepo) GetChannel(id string) (*model.PodcastChannel, error) {
 	return nil, model.ErrNotFound
 }
 
-func (m *MockPodcastRepo) ListVisible(userID string, includeGlobal bool) (model.PodcastChannels, error) {
+func (m *MockPodcastRepo) ListVisible(userID string) (model.PodcastChannels, error) {
 	if m.Err {
 		return nil, errors.New("error")
 	}
 	m.ensureMaps()
 	var res model.PodcastChannels
 	for _, ch := range m.Channels {
-		if ch.UserID == userID || (includeGlobal && ch.IsGlobal) {
+		if ch.UserID == userID {
 			res = append(res, *ch)
 		}
 	}
@@ -144,4 +156,47 @@ func (m *MockPodcastRepo) ListEpisodeStatuses(userID string, episodeIDs []string
 		}
 	}
 	return res, nil
+}
+
+func (m *MockPodcastRepo) SetEpisodeProgress(userID, episodeID string, position, duration int64) error {
+	if m.Err {
+		return errors.New("error")
+	}
+	m.ensureMaps()
+	if _, ok := m.Progress[userID]; !ok {
+		m.Progress[userID] = map[string]struct {
+			Position  int64
+			Duration  int64
+			UpdatedAt time.Time
+		}{}
+	}
+	m.Progress[userID][episodeID] = struct {
+		Position  int64
+		Duration  int64
+		UpdatedAt time.Time
+	}{Position: position, Duration: duration, UpdatedAt: time.Now()}
+	return nil
+}
+
+func (m *MockPodcastRepo) GetEpisodeProgress(userID, episodeID string) (position, duration int64, updatedAt time.Time, err error) {
+	if m.Err {
+		return 0, 0, time.Time{}, errors.New("error")
+	}
+	m.ensureMaps()
+	if m.Progress[userID] == nil {
+		return 0, 0, time.Time{}, model.ErrNotFound
+	}
+	row, ok := m.Progress[userID][episodeID]
+	if !ok {
+		return 0, 0, time.Time{}, model.ErrNotFound
+	}
+	return row.Position, row.Duration, row.UpdatedAt, nil
+}
+
+func (m *MockPodcastRepo) ListContinueListening(userID string, limit int) ([]model.PodcastContinueItem, error) {
+	if m.Err {
+		return nil, errors.New("error")
+	}
+	m.ensureMaps()
+	return []model.PodcastContinueItem{}, nil
 }

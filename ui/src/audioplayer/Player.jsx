@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useMediaQuery } from '@material-ui/core'
 import { ThemeProvider } from '@material-ui/core/styles'
@@ -30,7 +30,7 @@ import locale from './locale'
 import { keyMap } from '../hotkeys'
 import keyHandlers from './keyHandlers'
 import { calculateGain } from '../utils/calculateReplayGain'
-import { setEpisodeWatched } from '../podcast/api'
+import { setEpisodeProgress, setEpisodeWatched } from '../podcast/api'
 
 const Player = () => {
   const theme = useCurrentTheme()
@@ -44,13 +44,19 @@ const Player = () => {
   const [preloaded, setPreload] = useState(false)
   const [audioInstance, setAudioInstance] = useState(null)
   const isDesktop = useMediaQuery('(min-width:810px)')
-  const isMobilePlayer =
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent,
-    )
+  const isMobilePlayer = useMemo(
+    () =>
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent,
+      ),
+    [],
+  )
 
   const { authenticated } = useAuthState()
   const visible = authenticated && playerState.queue.length > 0
+  const current = playerState.current
+  const currentTrackId = current?.trackId
+  const currentIsRadio = current?.isRadio
   const isRadio = playerState.current?.isRadio || false
   const classes = useStyle({
     isRadio,
@@ -63,6 +69,30 @@ const Player = () => {
   const gainInfo = useSelector((state) => state.replayGain)
   const [context, setContext] = useState(null)
   const [gainNode, setGainNode] = useState(null)
+
+  const lastPodcastProgressSentAt = useRef(0)
+  const lastPodcastProgressSentPos = useRef(0)
+  const lastSeekedPodcastTrackId = useRef(null)
+
+  // Resume podcasts from the last saved position (when provided with the track).
+  useEffect(() => {
+    const song = current.song || {}
+    const trackId = current.trackId
+    const resumePosition = song.resumePosition || 0
+
+    if (!audioInstance || !song.isPodcast || !trackId) return
+    if (!resumePosition || resumePosition <= 0) return
+    if (lastSeekedPodcastTrackId.current === trackId) return
+
+    try {
+      if (audioInstance.currentTime < 1) {
+        audioInstance.currentTime = resumePosition
+        lastSeekedPodcastTrackId.current = trackId
+      }
+    } catch (_) {
+      // Ignore seek failures (e.g. not enough metadata yet)
+    }
+  }, [audioInstance, current])
 
   useEffect(() => {
     if (
@@ -134,7 +164,6 @@ const Player = () => {
   )
 
   const options = useMemo(() => {
-    const current = playerState.current || {}
     return {
       ...defaultOptions,
       audioLists: playerState.queue.map((item) => item),
@@ -142,12 +171,21 @@ const Player = () => {
       autoPlay: playerState.clear || playerState.playIndex === 0,
       clearPriorAudioLists: playerState.clear,
       extendsContent: (
-        <PlayerToolbar id={current.trackId} isRadio={current.isRadio} />
+        <PlayerToolbar id={currentTrackId} isRadio={currentIsRadio} />
       ),
       defaultVolume: isMobilePlayer ? 1 : playerState.volume,
-      showMediaSession: !current.isRadio,
+      showMediaSession: !currentIsRadio,
     }
-  }, [playerState, defaultOptions, isMobilePlayer])
+  }, [
+    defaultOptions,
+    playerState.clear,
+    playerState.playIndex,
+    playerState.queue,
+    playerState.volume,
+    currentIsRadio,
+    currentTrackId,
+    isMobilePlayer,
+  ])
 
   const onAudioListsChange = useCallback(
     (_, audioLists, audioInfo) => dispatch(syncQueue(audioInfo, audioLists)),
@@ -165,6 +203,26 @@ const Player = () => {
     (info) => {
       if (info.ended) {
         document.title = 'Navidrome'
+      }
+
+      // Persist podcast progress periodically (do this before any early returns).
+      if (info?.song?.isPodcast && info.trackId) {
+        const now = Date.now()
+        const pos = Math.floor(info.currentTime || 0)
+        const dur = Math.floor(info.duration || 0)
+        if (
+          now - lastPodcastProgressSentAt.current > 15000 &&
+          Math.abs(pos - lastPodcastProgressSentPos.current) >= 5
+        ) {
+          lastPodcastProgressSentAt.current = now
+          lastPodcastProgressSentPos.current = pos
+          setEpisodeProgress(info.song.channelId, info.trackId, pos, dur).catch(
+            () => {},
+          )
+        }
+
+        // Don't apply music scrobble/threshold logic for podcasts.
+        return
       }
 
       const progress = (info.currentTime / info.duration) * 100
@@ -246,10 +304,21 @@ const Player = () => {
     if (startTime !== null) {
       setStartTime(null)
     }
+
+    lastSeekedPodcastTrackId.current = null
   }, [scrobbled, startTime])
 
   const onAudioPause = useCallback(
-    (info) => dispatch(currentPlaying(info)),
+    (info) => {
+      dispatch(currentPlaying(info))
+      if (info?.song?.isPodcast && info.trackId) {
+        const pos = Math.floor(info.currentTime || 0)
+        const dur = Math.floor(info.duration || 0)
+        setEpisodeProgress(info.song.channelId, info.trackId, pos, dur).catch(
+          () => {},
+        )
+      }
+    },
     [dispatch],
   )
 
@@ -295,7 +364,7 @@ const Player = () => {
     if (isMobilePlayer && audioInstance) {
       audioInstance.volume = 1
     }
-  }, [isMobilePlayer, audioInstance])
+  }, [audioInstance, isMobilePlayer])
 
   return (
     <ThemeProvider theme={createMuiTheme(theme)}>

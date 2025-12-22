@@ -198,5 +198,5 @@ func mapPodcastEpisode(episode model.PodcastEpisode, channel *model.PodcastChann
 }
 
 func canAccessPodcast(channel *model.PodcastChannel, user model.User) bool {
-	return user.IsAdmin || channel.IsGlobal || channel.UserID == user.ID
+	return user.IsAdmin || channel.UserID == user.ID
 }
