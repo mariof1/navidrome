@@ -69,6 +69,7 @@ func (api *Router) routes() http.Handler {
 		api.addQueueRoute(r)
 		api.addMissingFilesRoute(r)
 		api.addKeepAliveRoute(r)
+		api.addRecommendationsRoute(r)
 		api.addInsightsRoute(r)
 
 		r.With(adminOnlyMiddleware).Group(func(r chi.Router) {

@@ -117,8 +117,6 @@ func (s *playlists) newSyncedPlaylist(baseDir string, playlistFile string) (*mod
 		return nil, err
 	}
 
-	normalizedPath := model.NormalizePlaylistPath(playlistPath)
-
 	var extension = filepath.Ext(playlistFile)
 	var name = playlistFile[0 : len(playlistFile)-len(extension)]
 
@@ -126,7 +124,7 @@ func (s *playlists) newSyncedPlaylist(baseDir string, playlistFile string) (*mod
 		Name:      name,
 		Comment:   fmt.Sprintf("Auto-imported from '%s'", playlistFile),
 		Public:    false,
-		Path:      normalizedPath,
+		Path:      playlistPath,
 		Sync:      true,
 		UpdatedAt: info.ModTime(),
 	}
