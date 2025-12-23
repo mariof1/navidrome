@@ -170,7 +170,7 @@ const PodcastShow = () => {
     setSaving(true)
     try {
       await deletePodcastChannel(channel.id)
-      notify('ra.notification.deleted', { type: 'info' })
+      notify('resources.podcast.notifications.deleted', { type: 'info' })
       redirect('/podcast')
     } catch (err) {
       notify(
@@ -393,7 +393,11 @@ const PodcastShow = () => {
                         <EditIcon />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title={translate('ra.action.delete')}>
+                    <Tooltip
+                      title={translate('resources.podcast.actions.unsubscribe', {
+                        _: 'Unsubscribe',
+                      })}
+                    >
                       <IconButton
                         size="small"
                         onClick={() => setDeleteDialogOpen(true)}
@@ -444,7 +448,9 @@ const PodcastShow = () => {
         fullWidth
         maxWidth="xs"
       >
-        <DialogTitle>{translate('ra.action.delete')}</DialogTitle>
+        <DialogTitle>
+          {translate('resources.podcast.actions.unsubscribe', { _: 'Unsubscribe' })}
+        </DialogTitle>
         <DialogContent>
           <Typography>{translate('ra.message.are_you_sure')}</Typography>
         </DialogContent>
@@ -459,7 +465,7 @@ const PodcastShow = () => {
             startIcon={<DeleteIcon />}
             disabled={saving}
           >
-            {translate('ra.action.delete')}
+            {translate('resources.podcast.actions.unsubscribe', { _: 'Unsubscribe' })}
           </Button>
         </DialogActions>
       </Dialog>

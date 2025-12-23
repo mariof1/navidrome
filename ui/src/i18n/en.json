@@ -298,6 +298,7 @@
       },
       "actions": {
         "add": "Add podcast",
+        "unsubscribe": "Unsubscribe",
         "search": "Search",
         "save": "Add",
         "continueListening": "Continue listening",
@@ -318,7 +319,7 @@
         "createError": "Could not add podcast.",
         "created": "Podcast added successfully.",
         "updated": "Podcast details saved.",
-        "deleted": "Podcast removed."
+        "deleted": "Unsubscribed from podcast."
       }
     },
     "share": {

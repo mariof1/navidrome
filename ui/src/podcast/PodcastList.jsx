@@ -305,7 +305,11 @@ const PodcastList = () => {
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title={translate('ra.action.delete')}>
+                          <Tooltip
+                            title={translate('resources.podcast.actions.unsubscribe', {
+                              _: 'Unsubscribe',
+                            })}
+                          >
                             <IconButton
                               size="small"
                               onClick={(e) => {
@@ -405,7 +409,9 @@ const PodcastList = () => {
       />
 
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} fullWidth maxWidth="xs">
-        <DialogTitle>{translate('ra.action.delete')}</DialogTitle>
+        <DialogTitle>
+          {translate('resources.podcast.actions.unsubscribe', { _: 'Unsubscribe' })}
+        </DialogTitle>
         <DialogContent>
           <Typography>{translate('ra.message.are_you_sure')}</Typography>
         </DialogContent>
@@ -420,7 +426,7 @@ const PodcastList = () => {
             startIcon={<DeleteIcon />}
             disabled={saving}
           >
-            {translate('ra.action.delete')}
+            {translate('resources.podcast.actions.unsubscribe', { _: 'Unsubscribe' })}
           </Button>
         </DialogActions>
       </Dialog>
