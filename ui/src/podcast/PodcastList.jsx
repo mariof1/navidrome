@@ -125,8 +125,8 @@ const PodcastList = () => {
   )
 
   const canManageChannel = useCallback(
-    (channel) => isAdmin || channel?.userId === identity?.id,
-    [identity?.id, isAdmin],
+    (channel) => isAdmin || channel?.userId === identity?.userId,
+    [identity?.userId, isAdmin],
   )
 
   const loadChannels = useCallback(async () => {

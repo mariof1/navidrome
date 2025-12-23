@@ -120,8 +120,8 @@ const PodcastShow = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const canManage = useMemo(
-    () => isAdmin || channel?.userId === identity?.id,
-    [channel?.userId, identity?.id, isAdmin],
+    () => isAdmin || channel?.userId === identity?.userId,
+    [channel?.userId, identity?.userId, isAdmin],
   )
 
   const loadData = useCallback(async () => {
@@ -393,18 +393,17 @@ const PodcastShow = () => {
                         <EditIcon />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip
-                      title={translate('resources.podcast.actions.unsubscribe', {
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="secondary"
+                      startIcon={<DeleteIcon />}
+                      onClick={() => setDeleteDialogOpen(true)}
+                    >
+                      {translate('resources.podcast.actions.unsubscribe', {
                         _: 'Unsubscribe',
                       })}
-                    >
-                      <IconButton
-                        size="small"
-                        onClick={() => setDeleteDialogOpen(true)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
+                    </Button>
                   </div>
                 )}
               </Box>

@@ -90,6 +90,7 @@ const authProvider = {
   getIdentity: () => {
     return Promise.resolve({
       id: localStorage.getItem('username'),
+      userId: localStorage.getItem('userId'),
       fullName: localStorage.getItem('name'),
       avatar: localStorage.getItem('avatar'),
     })
