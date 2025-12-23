@@ -54,7 +54,7 @@ const Player = () => {
 
   const { authenticated } = useAuthState()
   const visible = authenticated && playerState.queue.length > 0
-  const current = playerState.current
+  const current = playerState.current || {}
   const currentTrackId = current?.trackId
   const currentIsRadio = current?.isRadio
   const isRadio = playerState.current?.isRadio || false

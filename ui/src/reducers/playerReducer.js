@@ -170,7 +170,7 @@ const reduceSyncQueue = (state, { data: { audioInfo, audioLists } }) => {
 }
 
 const reduceCurrent = (state, { data }) => {
-  const current = data.ended ? {} : data
+  const current = !data || data.ended ? {} : data
   const savedPlayIndex = state.queue.findIndex(
     (item) => item.uuid === current.uuid,
   )
@@ -179,7 +179,7 @@ const reduceCurrent = (state, { data }) => {
     current,
     playIndex: undefined,
     savedPlayIndex,
-    volume: data.volume,
+    volume: data?.volume ?? state.volume,
   }
 }
 
