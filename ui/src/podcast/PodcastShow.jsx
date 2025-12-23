@@ -436,6 +436,7 @@ const PodcastShow = () => {
         open={dialogOpen}
         title={translate('ra.action.edit')}
         initialValue={{ rssUrl: channel.rssUrl || channel.rssURL || '' }}
+        editMode
         saving={saving}
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}

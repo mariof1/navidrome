@@ -400,6 +400,7 @@ const PodcastList = () => {
             : translate('resources.podcast.actions.add')
         }
         initialValue={initialDialogValue}
+        editMode={!!editingChannel}
         saving={saving}
         onClose={() => {
           setDialogOpen(false)

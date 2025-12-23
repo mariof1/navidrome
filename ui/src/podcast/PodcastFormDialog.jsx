@@ -25,6 +25,7 @@ const PodcastFormDialog = ({
   initialValue = {},
   saving = false,
   title,
+  editMode,
 }) => {
   const translate = useTranslate()
   const [rssUrl, setRssUrl] = useState(initialValue.rssUrl || initialValue.rssURL || '')
@@ -33,7 +34,7 @@ const PodcastFormDialog = ({
   const [results, setResults] = useState([])
   const [searchError, setSearchError] = useState('')
 
-  const isEditMode = !!(initialValue.rssUrl || initialValue.rssURL)
+  const isEditMode = editMode ?? !!(initialValue.rssUrl || initialValue.rssURL)
 
   useEffect(() => {
     setRssUrl(initialValue.rssUrl || initialValue.rssURL || '')
