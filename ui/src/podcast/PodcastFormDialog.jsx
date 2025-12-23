@@ -49,7 +49,20 @@ const PodcastFormDialog = ({
     setSearchError('')
     try {
       const res = await searchApplePodcasts(term)
-      setResults(res || [])
+      const rows = Array.isArray(res) ? res : []
+      const seen = new Set()
+      const deduped = []
+      for (const row of rows) {
+        if (!row) continue
+        const feedUrl = (row.feedUrl || '').trim()
+        const key = (feedUrl || `${row.title || ''}::${row.author || ''}`)
+          .trim()
+          .toLowerCase()
+        if (!key || seen.has(key)) continue
+        seen.add(key)
+        deduped.push(row)
+      }
+      setResults(deduped)
     } catch (e) {
       setResults([])
       setSearchError(e?.message || translate('resources.podcast.notifications.loadError'))
