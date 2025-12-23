@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5"
@@ -36,6 +37,10 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 		}
 		seed := r.URL.Query().Get("seed")
 
+		now := time.Now().UTC()
+		onRepeatCutoff := now.AddDate(0, 0, -14)
+		rediscoverCutoff := now.AddDate(0, 0, -30)
+
 		albumRepo := api.ds.Album(r.Context())
 		recentlyPlayed, err := albumRepo.GetAll(model.QueryOptions{
 			Sort:    "play_date",
@@ -45,6 +50,18 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 		})
 		if err != nil {
 			log.Error(r.Context(), "Error building home recommendations", "section", "recentlyPlayed", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		starred, err := albumRepo.GetAll(model.QueryOptions{
+			Sort:    "starred_at",
+			Order:   "DESC",
+			Max:     limit,
+			Filters: squirrel.Gt{"starred": 0},
+		})
+		if err != nil {
+			log.Error(r.Context(), "Error building home recommendations", "section", "starred", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -72,6 +89,50 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 			return
 		}
 
+		onRepeat, err := albumRepo.GetAll(model.QueryOptions{
+			Sort:  "play_count",
+			Order: "DESC",
+			Max:   limit,
+			Filters: squirrel.And{
+				squirrel.Gt{"play_count": 0},
+				squirrel.GtOrEq{"play_date": onRepeatCutoff},
+			},
+		})
+		if err != nil {
+			log.Error(r.Context(), "Error building home recommendations", "section", "onRepeat", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		rediscover, err := albumRepo.GetAll(model.QueryOptions{
+			Sort:  "play_count",
+			Order: "DESC",
+			Max:   limit,
+			Filters: squirrel.And{
+				squirrel.Gt{"play_count": 0},
+				squirrel.Lt{"play_date": rediscoverCutoff},
+			},
+		})
+		if err != nil {
+			log.Error(r.Context(), "Error building home recommendations", "section", "rediscover", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		discoverFresh, err := albumRepo.GetAll(model.QueryOptions{
+			Sort:  "recently_added",
+			Order: "DESC",
+			Max:   limit,
+			Filters: squirrel.And{
+				squirrel.Eq{"play_count": 0},
+			},
+		})
+		if err != nil {
+			log.Error(r.Context(), "Error building home recommendations", "section", "discoverFresh", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		random, err := albumRepo.GetAll(model.QueryOptions{
 			Sort:  "random",
 			Order: "ASC",
@@ -92,6 +153,12 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Items:    recentlyPlayed,
 			},
 			{
+				ID:       "starred",
+				Resource: "album",
+				To:       "/album/starred?sort=starred_at&order=DESC&filter={\"starred\":true}",
+				Items:    starred,
+			},
+			{
 				ID:       "recentlyAdded",
 				Resource: "album",
 				To:       "/album/recentlyAdded?sort=recently_added&order=DESC&filter={}",
@@ -102,6 +169,24 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "/album/mostPlayed?sort=play_count&order=DESC&filter={\"recently_played\":true}",
 				Items:    mostPlayed,
+			},
+			{
+				ID:       "onRepeat",
+				Resource: "album",
+				To:       "",
+				Items:    onRepeat,
+			},
+			{
+				ID:       "rediscover",
+				Resource: "album",
+				To:       "",
+				Items:    rediscover,
+			},
+			{
+				ID:       "discoverFresh",
+				Resource: "album",
+				To:       "",
+				Items:    discoverFresh,
 			},
 			{
 				ID:       "random",
