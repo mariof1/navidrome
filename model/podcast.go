@@ -6,7 +6,7 @@ import "time"
 type PodcastChannel struct {
 	ID              string     `structs:"id" json:"id"`
 	Title           string     `structs:"title" json:"title"`
-	RSSURL          string     `structs:"rss_url" json:"rssUrl"`
+	RSSURL          string     `structs:"rss_url" db:"rss_url" json:"rssUrl"`
 	SiteURL         string     `structs:"site_url" json:"siteUrl"`
 	Description     string     `structs:"description" json:"description"`
 	ImageURL        string     `structs:"image_url" json:"imageUrl"`

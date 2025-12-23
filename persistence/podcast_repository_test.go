@@ -58,6 +58,7 @@ var _ = Describe("PodcastRepository", func() {
 		savedChannel, err := repo.GetChannel(channel.ID)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(savedChannel.Title).To(Equal(channel.Title))
+		Expect(savedChannel.RSSURL).To(Equal(channel.RSSURL))
 
 		Expect(repo.SetEpisodeProgress("userid", savedEpisodesOrEmpty(repo, channel.ID)[0].ID, 42, 123)).To(Succeed())
 		pos, dur, _, err := repo.GetEpisodeProgress("userid", savedEpisodesOrEmpty(repo, channel.ID)[0].ID)
@@ -84,6 +85,7 @@ var _ = Describe("PodcastRepository", func() {
 
 		saved, err := repo.GetChannel(channel.ID)
 		Expect(err).NotTo(HaveOccurred())
+		Expect(saved.RSSURL).To(Equal(channel.RSSURL))
 		Expect(saved.Description).To(Equal(description))
 	})
 
