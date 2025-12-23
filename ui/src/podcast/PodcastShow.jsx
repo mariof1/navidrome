@@ -147,7 +147,7 @@ const PodcastShow = () => {
 
   const handleSave = async ({ rssUrl }) => {
     if (!channel) return
-    const url = (rssUrl || '').trim() || channel?.rssUrl
+    const url = (rssUrl || '').trim() || channel?.rssUrl || channel?.rssURL
     if (!url) return
     setSaving(true)
     try {
@@ -435,7 +435,7 @@ const PodcastShow = () => {
       <PodcastFormDialog
         open={dialogOpen}
         title={translate('ra.action.edit')}
-        initialValue={{ rssUrl: channel.rssUrl || '' }}
+        initialValue={{ rssUrl: channel.rssUrl || channel.rssURL || '' }}
         saving={saving}
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}

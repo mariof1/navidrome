@@ -119,9 +119,9 @@ const PodcastList = () => {
 
   const initialDialogValue = useMemo(
     () => ({
-      rssUrl: editingChannel?.rssUrl || '',
+      rssUrl: editingChannel?.rssUrl || editingChannel?.rssURL || '',
     }),
-    [editingChannel?.rssUrl],
+    [editingChannel?.rssUrl, editingChannel?.rssURL],
   )
 
   const canManageChannel = useCallback(
@@ -149,7 +149,7 @@ const PodcastList = () => {
   }, [loadChannels])
 
   useEffect(() => {
-    if (!dialogOpen || !editingChannel || editingChannel.rssUrl) {
+    if (!dialogOpen || !editingChannel || editingChannel.rssUrl || editingChannel.rssURL) {
       return
     }
 
