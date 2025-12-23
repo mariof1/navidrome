@@ -162,6 +162,12 @@ const Home = () => {
         return 'Recently added'
       case 'mostPlayed':
         return 'Most played'
+      case 'onRepeat':
+        return 'On repeat'
+      case 'rediscover':
+        return 'Rediscover'
+      case 'discoverFresh':
+        return 'Discover fresh'
       case 'random':
         return 'Random'
       default:

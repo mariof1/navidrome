@@ -93,15 +93,21 @@ var _ = Describe("Recommendations API", func() {
 
 		var resp homeRecommendationsResponse
 		Expect(json.Unmarshal(w.Body.Bytes(), &resp)).To(Succeed())
-		Expect(resp.Sections).To(HaveLen(4))
+		Expect(resp.Sections).To(HaveLen(8))
 		Expect(resp.Sections[0].Resource).To(Equal("album"))
 		Expect(resp.Sections[0].Items).ToNot(BeEmpty())
 
 		// Called once per section
-		Expect(alRepo.Calls).To(HaveLen(4))
+		Expect(alRepo.Calls).To(HaveLen(8))
 		Expect(alRepo.Calls[0].Sort).To(Equal("play_date"))
 		Expect(alRepo.Calls[0].Max).To(Equal(7))
-		Expect(alRepo.Calls[3].Sort).To(Equal("random"))
-		Expect(alRepo.Calls[3].Seed).To(Equal("s"))
+		Expect(alRepo.Calls[1].Sort).To(Equal("starred_at"))
+		Expect(alRepo.Calls[2].Sort).To(Equal("recently_added"))
+		Expect(alRepo.Calls[3].Sort).To(Equal("play_count"))
+		Expect(alRepo.Calls[4].Sort).To(Equal("play_count"))
+		Expect(alRepo.Calls[5].Sort).To(Equal("play_count"))
+		Expect(alRepo.Calls[6].Sort).To(Equal("recently_added"))
+		Expect(alRepo.Calls[7].Sort).To(Equal("random"))
+		Expect(alRepo.Calls[7].Seed).To(Equal("s"))
 	})
 })
