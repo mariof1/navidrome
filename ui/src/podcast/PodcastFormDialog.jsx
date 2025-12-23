@@ -33,6 +33,8 @@ const PodcastFormDialog = ({
   const [results, setResults] = useState([])
   const [searchError, setSearchError] = useState('')
 
+  const isEditMode = !!(initialValue.rssUrl || initialValue.rssURL)
+
   useEffect(() => {
     setRssUrl(initialValue.rssUrl || initialValue.rssURL || '')
     setSearchTerm('')
@@ -75,62 +77,74 @@ const PodcastFormDialog = ({
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
-        <TextField
-          label={translate('resources.podcast.fields.searchApple')}
-          value={searchTerm}
-          fullWidth
-          onChange={(e) => setSearchTerm(e.target.value)}
-          margin="normal"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              handleSearch()
-            }
-          }}
-        />
-        <Button
-          onClick={handleSearch}
-          color="default"
-          variant="outlined"
-          disabled={searching || !(searchTerm || '').trim()}
-        >
-          {translate('resources.podcast.actions.search')}
-        </Button>
+        {!isEditMode ? (
+          <>
+            <TextField
+              label={translate('resources.podcast.fields.searchApple')}
+              value={searchTerm}
+              fullWidth
+              onChange={(e) => setSearchTerm(e.target.value)}
+              margin="normal"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleSearch()
+                }
+              }}
+            />
+            <Button
+              onClick={handleSearch}
+              color="default"
+              variant="outlined"
+              disabled={searching || !(searchTerm || '').trim()}
+            >
+              {translate('resources.podcast.actions.search')}
+            </Button>
 
-        {searching ? (
-          <Typography variant="body2" style={{ marginTop: 12 }}>
-            <CircularProgress size={18} style={{ marginRight: 8 }} />
-            {translate('resources.podcast.messages.searching')}
-          </Typography>
-        ) : null}
+            {searching ? (
+              <Typography variant="body2" style={{ marginTop: 12 }}>
+                <CircularProgress size={18} style={{ marginRight: 8 }} />
+                {translate('resources.podcast.messages.searching')}
+              </Typography>
+            ) : null}
 
-        {!searching && searchError ? (
-          <Typography variant="caption" color="error" style={{ display: 'block', marginTop: 8 }}>
-            {searchError}
-          </Typography>
-        ) : null}
-
-        {!searching && results?.length ? (
-          <List dense style={{ maxHeight: 240, overflowY: 'auto' }}>
-            {results.map((r) => (
-              <ListItem
-                key={`${r.feedUrl}-${r.title}`}
-                button
-                onClick={() => onSave({ rssUrl: r.feedUrl })}
+            {!searching && searchError ? (
+              <Typography
+                variant="caption"
+                color="error"
+                style={{ display: 'block', marginTop: 8 }}
               >
-                <ListItemAvatar>
-                  <Avatar variant="square" src={r.imageUrl || ''} />
-                </ListItemAvatar>
-                <ListItemText primary={r.title} secondary={r.author || r.siteUrl || ''} />
-              </ListItem>
-            ))}
-          </List>
-        ) : null}
+                {searchError}
+              </Typography>
+            ) : null}
 
-        {!searching && (searchTerm || '').trim() && results?.length === 0 && !searchError ? (
-          <Typography variant="caption" color="textSecondary" style={{ display: 'block', marginTop: 8 }}>
-            {translate('resources.podcast.messages.noSearchResults')}
-          </Typography>
+            {!searching && results?.length ? (
+              <List dense style={{ maxHeight: 240, overflowY: 'auto' }}>
+                {results.map((r) => (
+                  <ListItem
+                    key={`${r.feedUrl}-${r.title}`}
+                    button
+                    onClick={() => onSave({ rssUrl: r.feedUrl })}
+                  >
+                    <ListItemAvatar>
+                      <Avatar variant="square" src={r.imageUrl || ''} />
+                    </ListItemAvatar>
+                    <ListItemText primary={r.title} secondary={r.author || r.siteUrl || ''} />
+                  </ListItem>
+                ))}
+              </List>
+            ) : null}
+
+            {!searching && (searchTerm || '').trim() && results?.length === 0 && !searchError ? (
+              <Typography
+                variant="caption"
+                color="textSecondary"
+                style={{ display: 'block', marginTop: 8 }}
+              >
+                {translate('resources.podcast.messages.noSearchResults')}
+              </Typography>
+            ) : null}
+          </>
         ) : null}
 
         <TextField
@@ -153,7 +167,7 @@ const PodcastFormDialog = ({
           startIcon={<RssFeedIcon />}
           disabled={!rssUrl || saving}
         >
-          {translate('resources.podcast.actions.save')}
+          {isEditMode ? translate('ra.action.save') : translate('resources.podcast.actions.save')}
         </Button>
       </DialogActions>
     </Dialog>
