@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useTranslate, linkToRecord, Loading, Title } from 'react-admin'
-import { Link } from 'react-router-dom'
-import { Typography, makeStyles, useMediaQuery } from '@material-ui/core'
+import { useTranslate, Loading, Title, useDataProvider } from 'react-admin'
+import { Typography, makeStyles, useMediaQuery, IconButton } from '@material-ui/core'
 import { useSelector } from 'react-redux'
+import { useDispatch } from 'react-redux'
+import PlayArrowIcon from '@material-ui/icons/PlayArrow'
+import ShuffleIcon from '@material-ui/icons/Shuffle'
 import subsonic from '../subsonic'
 import { getHomeRecommendations } from './api'
+import { playTracks, shuffleTracks } from '../actions'
 
 const useStyles = makeStyles(
   (theme) => ({
@@ -33,6 +36,12 @@ const useStyles = makeStyles(
         minWidth: 0,
       },
     },
+    headerActions: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: theme.spacing(0.5),
+      flexShrink: 0,
+    },
     row: {
       display: 'grid',
       gap: theme.spacing(2),
@@ -43,27 +52,40 @@ const useStyles = makeStyles(
         gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
       },
     },
-    card: {
+    bucketCard: {
       width: '100%',
-      textDecoration: 'none',
-      color: 'inherit',
       minWidth: 0,
+      borderRadius: theme.shape.borderRadius,
+      overflow: 'hidden',
+      background: theme.palette.background.paper,
+      cursor: 'pointer',
+      userSelect: 'none',
     },
-    cover: {
+    bucketArtGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, 1fr)',
+      gridTemplateRows: 'repeat(2, 1fr)',
       width: '100%',
       aspectRatio: '1 / 1',
+      background: theme.palette.background.default,
+    },
+    bucketArt: {
+      width: '100%',
+      height: '100%',
       objectFit: 'cover',
-      borderRadius: theme.shape.borderRadius,
       display: 'block',
     },
-    title: {
-      marginTop: theme.spacing(1),
+    bucketMeta: {
+      padding: theme.spacing(1),
+      minWidth: 0,
+    },
+    bucketName: {
       fontSize: 14,
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       whiteSpace: 'nowrap',
     },
-    subtitle: {
+    bucketSubtitle: {
       fontSize: 12,
       opacity: 0.8,
       overflow: 'hidden',
@@ -74,8 +96,10 @@ const useStyles = makeStyles(
   { name: 'NDHome' },
 )
 
-const AlbumRow = ({ title, to, items, loading }) => {
+const BucketRow = ({ title, items, loading }) => {
   const classes = useStyles()
+  const dataProvider = useDataProvider()
+  const dispatch = useDispatch()
 
   if (loading) {
     return (
@@ -93,35 +117,102 @@ const AlbumRow = ({ title, to, items, loading }) => {
     return null
   }
 
+  const playBucket = async ({ shuffle } = {}) => {
+    // Build a queue of songs from the bucket's albums.
+    // Keep it lightweight by limiting to 500 total songs.
+    const songs = {}
+    const songIds = []
+    for (const a of albums) {
+      const res = await dataProvider.getList('song', {
+        pagination: { page: 1, perPage: 200 },
+        sort: { field: 'album', order: 'ASC' },
+        filter: { album_id: a.id, missing: false },
+      })
+      res.data.forEach((s) => {
+        if (!songs[s.id]) {
+          songs[s.id] = s
+          songIds.push(s.id)
+        }
+      })
+      if (songIds.length >= 500) break
+    }
+    if (shuffle) {
+      dispatch(shuffleTracks(songs, songIds))
+    } else {
+      dispatch(playTracks(songs, songIds))
+    }
+  }
+
   return (
     <div className={classes.section}>
       <div className={classes.header}>
         <Typography variant="h6">{title}</Typography>
-        {to && (
-          <Typography variant="body2" component={Link} to={to}>
-            See all
-          </Typography>
-        )}
+        <div className={classes.headerActions}>
+          <IconButton
+            aria-label="play"
+            size="small"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              playBucket({ shuffle: false })
+            }}
+          >
+            <PlayArrowIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            aria-label="shuffle"
+            size="small"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              playBucket({ shuffle: true })
+            }}
+          >
+            <ShuffleIcon fontSize="small" />
+          </IconButton>
+        </div>
       </div>
       <div className={classes.row}>
-        {albums.map((record) => (
-          <Link
-            key={record.id}
-            className={classes.card}
-            to={linkToRecord('/album', record.id, 'show')}
-          >
-            <img
-              className={classes.cover}
-              src={subsonic.getCoverArtUrl(record, 300, true)}
-              alt={record.name}
-              loading="lazy"
-            />
-            <Typography className={classes.title}>{record.name}</Typography>
-            <Typography className={classes.subtitle}>
-              {record.albumArtist}
-            </Typography>
-          </Link>
-        ))}
+        {albums.map((record) => {
+          const art = albums
+            .slice(0, 4)
+            .map((a) => subsonic.getCoverArtUrl(a, 300, true))
+          while (art.length < 4) art.push(art[0])
+
+          return (
+            <div
+              key={record.id}
+              className={classes.bucketCard}
+              role="button"
+              tabIndex={0}
+              onClick={() => playBucket({ shuffle: false })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  playBucket({ shuffle: false })
+                }
+              }}
+            >
+              <div className={classes.bucketArtGrid}>
+                {art.slice(0, 4).map((src, idx) => (
+                  <img
+                    key={idx}
+                    className={classes.bucketArt}
+                    src={src}
+                    alt=""
+                    loading="lazy"
+                  />
+                ))}
+              </div>
+              <div className={classes.bucketMeta}>
+                <Typography className={classes.bucketName}>{title}</Typography>
+                <Typography className={classes.bucketSubtitle}>
+                  {albums.length} albums
+                </Typography>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -212,13 +303,12 @@ const Home = () => {
       {sections
         .filter((s) => s?.resource === 'album')
         .map((s) => (
-          <AlbumRow
+          <BucketRow
             key={s.id}
             title={translate(`resources.album.lists.${s.id}`, {
               smart_count: 2,
               _: titleFallback(s.id),
             })}
-            to={s.to}
             items={s.items}
             loading={loading}
           />

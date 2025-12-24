@@ -147,24 +147,30 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 		}
 
 		// Derive a small set of “seed” artists from the user's recent listening patterns.
-		// Note: this is intentionally lightweight and based on existing per-user play_count/play_date.
-		seenArtists := map[string]struct{}{}
-		var seedArtistIDs []string
-		appendArtists := func(albums model.Albums) {
-			for _, a := range albums {
-				if a.AlbumArtistID == "" {
-					continue
-				}
-				if _, ok := seenArtists[a.AlbumArtistID]; ok {
-					continue
-				}
-				seenArtists[a.AlbumArtistID] = struct{}{}
-				seedArtistIDs = append(seedArtistIDs, a.AlbumArtistID)
-			}
+		// Prefer user_events-derived scoring if available; fallback to play_count/play_date.
+		seedArtistIDs, err := api.ds.UserEvent(r.Context()).TopAlbumArtistIDs(6, now)
+		if err != nil {
+			log.Trace(r.Context(), "Error retrieving top album artists", err)
+			seedArtistIDs = nil
 		}
-		appendArtists(onRepeat)
-		appendArtists(recentlyPlayed)
-		appendArtists(mostPlayed)
+		if len(seedArtistIDs) == 0 {
+			seenArtists := map[string]struct{}{}
+			appendArtists := func(albums model.Albums) {
+				for _, a := range albums {
+					if a.AlbumArtistID == "" {
+						continue
+					}
+					if _, ok := seenArtists[a.AlbumArtistID]; ok {
+						continue
+					}
+					seenArtists[a.AlbumArtistID] = struct{}{}
+					seedArtistIDs = append(seedArtistIDs, a.AlbumArtistID)
+				}
+			}
+			appendArtists(onRepeat)
+			appendArtists(recentlyPlayed)
+			appendArtists(mostPlayed)
+		}
 
 		mix1IDs := seedArtistIDs
 		if len(mix1IDs) > 3 {

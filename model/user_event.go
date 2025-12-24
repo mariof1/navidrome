@@ -15,4 +15,5 @@ type UserEvent struct {
 
 type UserEventRepository interface {
 	Record(event UserEvent) error
+	TopAlbumArtistIDs(limit int, now time.Time) ([]string, error)
 }
