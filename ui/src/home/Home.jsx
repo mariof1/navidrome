@@ -7,6 +7,7 @@ import {
   Divider,
   useMediaQuery,
 } from '@material-ui/core'
+import { useSelector } from 'react-redux'
 import subsonic from '../subsonic'
 import { getHomeRecommendations } from './api'
 
@@ -16,6 +17,7 @@ const useStyles = makeStyles(
       padding: theme.spacing(2),
       maxWidth: 1400,
       margin: '0 auto',
+      paddingBottom: (props) => (props.addPadding ? '80px' : theme.spacing(2)),
     },
     section: {
       marginTop: theme.spacing(3),
@@ -117,7 +119,8 @@ const AlbumRow = ({ title, to, items, loading }) => {
 }
 
 const Home = () => {
-  const classes = useStyles()
+  const queue = useSelector((state) => state.player?.queue)
+  const classes = useStyles({ addPadding: queue.length > 0 })
   const translate = useTranslate()
   const isDesktop = useMediaQuery((theme) => theme.breakpoints.up('md'), {
     noSsr: true,
