@@ -117,6 +117,9 @@ const BucketRow = ({ title, items, loading }) => {
     return null
   }
 
+  const art = albums.slice(0, 4).map((a) => subsonic.getCoverArtUrl(a, 300, true))
+  while (art.length > 0 && art.length < 4) art.push(art[0])
+
   const playBucket = async ({ shuffle } = {}) => {
     // Build a queue of songs from the bucket's albums.
     // Keep it lightweight by limiting to 500 total songs.
@@ -173,46 +176,28 @@ const BucketRow = ({ title, items, loading }) => {
         </div>
       </div>
       <div className={classes.row}>
-        {albums.map((record) => {
-          const art = albums
-            .slice(0, 4)
-            .map((a) => subsonic.getCoverArtUrl(a, 300, true))
-          while (art.length < 4) art.push(art[0])
-
-          return (
-            <div
-              key={record.id}
-              className={classes.bucketCard}
-              role="button"
-              tabIndex={0}
-              onClick={() => playBucket({ shuffle: false })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  playBucket({ shuffle: false })
-                }
-              }}
-            >
-              <div className={classes.bucketArtGrid}>
-                {art.slice(0, 4).map((src, idx) => (
-                  <img
-                    key={idx}
-                    className={classes.bucketArt}
-                    src={src}
-                    alt=""
-                    loading="lazy"
-                  />
-                ))}
-              </div>
-              <div className={classes.bucketMeta}>
-                <Typography className={classes.bucketName}>{title}</Typography>
-                <Typography className={classes.bucketSubtitle}>
-                  {albums.length} albums
-                </Typography>
-              </div>
-            </div>
-          )
-        })}
+        <div
+          className={classes.bucketCard}
+          role="button"
+          tabIndex={0}
+          onClick={() => playBucket({ shuffle: false })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              playBucket({ shuffle: false })
+            }
+          }}
+        >
+          <div className={classes.bucketArtGrid}>
+            {art.slice(0, 4).map((src, idx) => (
+              <img key={idx} className={classes.bucketArt} src={src} alt="" loading="lazy" />
+            ))}
+          </div>
+          <div className={classes.bucketMeta}>
+            <Typography className={classes.bucketName}>{title}</Typography>
+            <Typography className={classes.bucketSubtitle}>{albums.length} albums</Typography>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -281,6 +266,14 @@ const Home = () => {
         return 'Rediscover'
       case 'discoverFresh':
         return 'Discover fresh'
+      case 'continueListening':
+        return 'Continue listening'
+      case 'newReleases':
+        return 'New releases'
+      case 'topRated':
+        return 'Top rated'
+      case 'forgottenFavorites':
+        return 'Forgotten favorites'
       case 'random':
         return 'Random'
       default:
