@@ -1,12 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useTranslate, linkToRecord, Loading } from 'react-admin'
+import { useTranslate, linkToRecord, Loading, Title } from 'react-admin'
 import { Link } from 'react-router-dom'
-import {
-  Typography,
-  makeStyles,
-  Divider,
-  useMediaQuery,
-} from '@material-ui/core'
+import { Typography, makeStyles, useMediaQuery } from '@material-ui/core'
 import { useSelector } from 'react-redux'
 import subsonic from '../subsonic'
 import { getHomeRecommendations } from './api'
@@ -19,6 +14,9 @@ const useStyles = makeStyles(
       margin: '0 auto',
       paddingBottom: (props) => (props.addPadding ? '80px' : theme.spacing(2)),
       boxSizing: 'border-box',
+      width: '100%',
+      minWidth: 0,
+      overflowX: 'hidden',
     },
     section: {
       marginTop: theme.spacing(3),
@@ -27,6 +25,8 @@ const useStyles = makeStyles(
       display: 'flex',
       alignItems: 'baseline',
       justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: theme.spacing(1),
       marginBottom: theme.spacing(1),
       minWidth: 0,
       '& > *': {
@@ -34,25 +34,20 @@ const useStyles = makeStyles(
       },
     },
     row: {
-      display: 'flex',
+      display: 'grid',
       gap: theme.spacing(2),
-      overflowX: 'auto',
+      overflowX: 'hidden',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
       paddingBottom: theme.spacing(1),
       [theme.breakpoints.down('xs')]: {
-        display: 'grid',
         gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-        overflowX: 'hidden',
       },
     },
     card: {
-      width: 160,
-      flex: '0 0 auto',
+      width: '100%',
       textDecoration: 'none',
       color: 'inherit',
       minWidth: 0,
-      [theme.breakpoints.down('xs')]: {
-        width: '100%',
-      },
     },
     cover: {
       width: '100%',
@@ -194,8 +189,7 @@ const Home = () => {
 
   return (
     <div className={classes.root}>
-      <Typography variant="h4">{translate('menu.home', { _: 'Home' })}</Typography>
-      <Divider />
+      <Title title={translate('menu.home', { _: 'Home' })} />
 
       {loading && <Loading loadingPrimary="ra.page.loading" />}
 

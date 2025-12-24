@@ -54,7 +54,8 @@ const Player = () => {
 
   const { authenticated } = useAuthState()
   const visible = authenticated && playerState.queue.length > 0
-  const current = playerState.current || {}
+  const current = playerState.current
+  const currentSong = current?.song
   const currentTrackId = current?.trackId
   const currentIsRadio = current?.isRadio
   const isRadio = playerState.current?.isRadio || false
@@ -76,8 +77,8 @@ const Player = () => {
 
   // Resume podcasts from the last saved position (when provided with the track).
   useEffect(() => {
-    const song = current.song || {}
-    const trackId = current.trackId
+    const song = currentSong || {}
+    const trackId = currentTrackId
     const resumePosition = song.resumePosition || 0
 
     if (!audioInstance || !song.isPodcast || !trackId) return
@@ -92,7 +93,7 @@ const Player = () => {
     } catch (_) {
       // Ignore seek failures (e.g. not enough metadata yet)
     }
-  }, [audioInstance, current])
+  }, [audioInstance, currentSong, currentTrackId])
 
   useEffect(() => {
     if (
