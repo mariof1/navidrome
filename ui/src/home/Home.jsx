@@ -18,6 +18,7 @@ const useStyles = makeStyles(
       maxWidth: 1400,
       margin: '0 auto',
       paddingBottom: (props) => (props.addPadding ? '80px' : theme.spacing(2)),
+      boxSizing: 'border-box',
     },
     section: {
       marginTop: theme.spacing(3),
@@ -33,12 +34,21 @@ const useStyles = makeStyles(
       gap: theme.spacing(2),
       overflowX: 'auto',
       paddingBottom: theme.spacing(1),
+      [theme.breakpoints.down('xs')]: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        overflowX: 'hidden',
+      },
     },
     card: {
       width: 160,
       flex: '0 0 auto',
       textDecoration: 'none',
       color: 'inherit',
+      minWidth: 0,
+      [theme.breakpoints.down('xs')]: {
+        width: '100%',
+      },
     },
     cover: {
       width: '100%',
