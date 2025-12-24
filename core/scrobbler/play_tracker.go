@@ -55,6 +55,7 @@ type playTracker struct {
 	ds                model.DataStore
 	broker            events.Broker
 	playMap           cache.SimpleCache[string, NowPlayingInfo]
+	recentScrobbles   cache.SimpleCache[string, time.Time]
 	builtinScrobblers map[string]Scrobbler
 	pluginScrobblers  map[string]Scrobbler
 	pluginLoader      PluginLoader
@@ -76,9 +77,11 @@ func GetPlayTracker(ds model.DataStore, broker events.Broker, pluginManager Plug
 // the GetPlayTracker function above
 func newPlayTracker(ds model.DataStore, broker events.Broker, pluginManager PluginLoader) *playTracker {
 	m := cache.NewSimpleCache[string, NowPlayingInfo]()
+	recentScrobbles := cache.NewSimpleCache[string, time.Time](cache.Options{DefaultTTL: 2 * time.Hour})
 	p := &playTracker{
 		ds:                ds,
 		playMap:           m,
+		recentScrobbles:   recentScrobbles,
 		broker:            broker,
 		builtinScrobblers: make(map[string]Scrobbler),
 		pluginScrobblers:  make(map[string]Scrobbler),
@@ -191,6 +194,34 @@ func (p *playTracker) getActiveScrobblers() map[string]Scrobbler {
 }
 
 func (p *playTracker) NowPlaying(ctx context.Context, playerId string, playerName string, trackId string, position int) error {
+	prev, prevErr := p.playMap.Get(playerId)
+	if prevErr == nil && prev.MediaFile.ID != "" && prev.MediaFile.ID != trackId {
+		listenedSeconds := int(time.Since(prev.Start).Seconds()) + prev.Position
+		if listenedSeconds < 0 {
+			listenedSeconds = 0
+		}
+		// Heuristic: treat a rapid track change as a skip.
+		skipThreshold := 30
+		if prev.MediaFile.Duration > 0 {
+			frac := int(prev.MediaFile.Duration / 5) // ~20%
+			if frac > 0 && frac < skipThreshold {
+				skipThreshold = frac
+			}
+		}
+		if listenedSeconds > 0 && listenedSeconds <= skipThreshold {
+			if err := p.ds.UserEvent(ctx).Record(model.UserEvent{
+				EventType:  "skip",
+				EntityType: "song",
+				EntityID:   prev.MediaFile.ID,
+				PlayerID:   playerId,
+				Position:   listenedSeconds,
+				OccurredAt: time.Now(),
+			}); err != nil {
+				log.Trace(ctx, "Error recording user event", "event", "skip", "trackId", prev.MediaFile.ID, err)
+			}
+		}
+	}
+
 	mf, err := p.ds.MediaFile(ctx).GetWithParticipants(trackId)
 	if err != nil {
 		log.Error(ctx, "Error retrieving mediaFile", "id", trackId, err)
@@ -333,6 +364,37 @@ func (p *playTracker) Submit(ctx context.Context, submissions []Submission) erro
 			log.Error(ctx, "Error updating play counts", "id", mf.ID, "track", mf.Title, "user", username, err)
 		} else {
 			success++
+			// Best-effort user behavior tracking (does not affect scrobbling)
+			if err := p.ds.UserEvent(ctx).Record(model.UserEvent{
+				EventType:  "scrobble",
+				EntityType: "song",
+				EntityID:   s.TrackID,
+				PlayerID:   player.ID,
+				OccurredAt: s.Timestamp,
+			}); err != nil {
+				log.Trace(ctx, "Error recording user event", "event", "scrobble", "trackId", s.TrackID, err)
+			}
+
+			// Heuristic repeat: same user+track scrobbled again soon.
+			u, _ := request.UserFrom(ctx)
+			if u.ID != "" {
+				key := u.ID + "|" + s.TrackID
+				if last, err := p.recentScrobbles.Get(key); err == nil {
+					if s.Timestamp.Sub(last) > 0 && s.Timestamp.Sub(last) <= 30*time.Minute {
+						if err := p.ds.UserEvent(ctx).Record(model.UserEvent{
+							EventType:  "repeat",
+							EntityType: "song",
+							EntityID:   s.TrackID,
+							PlayerID:   player.ID,
+							OccurredAt: s.Timestamp,
+						}); err != nil {
+							log.Trace(ctx, "Error recording user event", "event", "repeat", "trackId", s.TrackID, err)
+						}
+					}
+				}
+				_ = p.recentScrobbles.Add(key, s.Timestamp)
+			}
+
 			event.With("song", mf.ID).With("album", mf.AlbumID).With("artist", mf.AlbumArtistID)
 			log.Info(ctx, "Scrobbled", "title", mf.Title, "artist", mf.Artist, "user", username, "timestamp", s.Timestamp)
 			if player.ScrobbleEnabled {

@@ -116,6 +116,38 @@ var _ = Describe("PlayTracker", func() {
 			Expect(fake.GetTrack().ID).To(Equal("123"))
 			Expect(fake.GetTrack().Participants).To(Equal(track.Participants))
 		})
+
+		It("records a skip event when switching tracks quickly", func() {
+			track2 := track
+			track2.ID = "456"
+			track2.AlbumID = "al-2"
+			_ = ds.MediaFile(ctx).Put(&track2)
+
+			mockEvents := ds.UserEvent(ctx).(*tests.MockUserEventRepo)
+
+			err := tracker.NowPlaying(ctx, "player-1", "player-one", "123", 0)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Simulate that the first track started a few seconds ago
+			prev, err := tracker.(*playTracker).playMap.Get("player-1")
+			Expect(err).ToNot(HaveOccurred())
+			prev.Start = time.Now().Add(-5 * time.Second)
+			_ = tracker.(*playTracker).playMap.AddWithTTL("player-1", prev, time.Hour)
+
+			err = tracker.NowPlaying(ctx, "player-1", "player-one", "456", 0)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Expect at least one skip event for track 123
+			sawSkip := false
+			for _, e := range mockEvents.Events {
+				if e.EventType == "skip" && e.EntityType == "song" && e.EntityID == "123" {
+					sawSkip = true
+					Expect(e.PlayerID).To(Equal("player-1"))
+					Expect(e.Position).To(BeNumerically(">", 0))
+				}
+			}
+			Expect(sawSkip).To(BeTrue())
+		})
 		It("does not send track to agent if user has not authorized", func() {
 			fake.Authorized = false
 
@@ -243,6 +275,31 @@ var _ = Describe("PlayTracker", func() {
 			Expect(lastScrobble.TimeStamp).To(BeTemporally("~", ts, 1*time.Second))
 			Expect(lastScrobble.ID).To(Equal("123"))
 			Expect(lastScrobble.Participants).To(Equal(track.Participants))
+		})
+
+		It("records repeat when scrobbling same track again soon", func() {
+			ctx = request.WithUser(ctx, model.User{ID: "u-1", UserName: "user-1"})
+			mockEvents := ds.UserEvent(ctx).(*tests.MockUserEventRepo)
+			t1 := time.Now().Add(-10 * time.Minute)
+			t2 := t1.Add(5 * time.Minute)
+
+			err := tracker.Submit(ctx, []Submission{{TrackID: "123", Timestamp: t1}})
+			Expect(err).ToNot(HaveOccurred())
+			err = tracker.Submit(ctx, []Submission{{TrackID: "123", Timestamp: t2}})
+			Expect(err).ToNot(HaveOccurred())
+
+			scrobbleCount := 0
+			repeatCount := 0
+			for _, e := range mockEvents.Events {
+				if e.EventType == "scrobble" && e.EntityID == "123" {
+					scrobbleCount++
+				}
+				if e.EventType == "repeat" && e.EntityID == "123" {
+					repeatCount++
+				}
+			}
+			Expect(scrobbleCount).To(Equal(2))
+			Expect(repeatCount).To(Equal(1))
 		})
 
 		It("increments play counts in the DB", func() {
