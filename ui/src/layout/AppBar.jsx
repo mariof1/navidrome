@@ -20,6 +20,25 @@ import config from '../config'
 
 const useStyles = makeStyles(
   (theme) => ({
+    appBar: {
+      '& .MuiToolbar-root': {
+        minWidth: 0,
+      },
+      '& #react-admin-title': {
+        minWidth: 0,
+        flex: '1 1 auto',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      },
+      '& .RaAppBar-title': {
+        minWidth: 0,
+        flex: '1 1 auto',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      },
+    },
     root: {
       color: theme.palette.text.secondary,
     },
@@ -139,8 +158,16 @@ const CustomUserMenu = ({ onClick, ...rest }) => {
   )
 }
 
-const AppBar = (props) => (
-  <RAAppBar {...props} container={Fragment} userMenu={<CustomUserMenu />} />
-)
+const AppBar = (props) => {
+  const classes = useStyles(props)
+  return (
+    <RAAppBar
+      {...props}
+      className={classes.appBar}
+      container={Fragment}
+      userMenu={<CustomUserMenu />}
+    />
+  )
+}
 
 export default AppBar

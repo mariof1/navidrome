@@ -28,6 +28,10 @@ const useStyles = makeStyles(
       alignItems: 'baseline',
       justifyContent: 'space-between',
       marginBottom: theme.spacing(1),
+      minWidth: 0,
+      '& > *': {
+        minWidth: 0,
+      },
     },
     row: {
       display: 'flex',
