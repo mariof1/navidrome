@@ -168,8 +168,18 @@ const Home = () => {
 
   const titleFallback = (id) => {
     switch (id) {
+      case 'dailyMix1':
+        return 'Daily mix 1'
+      case 'dailyMix2':
+        return 'Daily mix 2'
+      case 'dailyMix3':
+        return 'Daily mix 3'
+      case 'inspiredBy':
+        return 'Inspired by you'
       case 'recentlyPlayed':
         return 'Recently played'
+      case 'starred':
+        return 'Starred'
       case 'recentlyAdded':
         return 'Recently added'
       case 'mostPlayed':

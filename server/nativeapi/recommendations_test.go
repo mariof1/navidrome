@@ -62,8 +62,8 @@ var _ = Describe("Recommendations API", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		albums := model.Albums{
-			{ID: "album-1", Name: "A1", AlbumArtist: "AA", LibraryID: 1, CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			{ID: "album-2", Name: "A2", AlbumArtist: "BB", LibraryID: 1, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: "album-1", Name: "A1", AlbumArtist: "AA", AlbumArtistID: "artist-1", LibraryID: 1, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: "album-2", Name: "A2", AlbumArtist: "BB", AlbumArtistID: "artist-2", LibraryID: 1, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		}
 		alRepo.SetData(albums)
 
@@ -93,21 +93,38 @@ var _ = Describe("Recommendations API", func() {
 
 		var resp homeRecommendationsResponse
 		Expect(json.Unmarshal(w.Body.Bytes(), &resp)).To(Succeed())
-		Expect(resp.Sections).To(HaveLen(8))
+		Expect(resp.Sections).To(HaveLen(12))
+		Expect(resp.Sections[0].ID).To(Equal("dailyMix1"))
 		Expect(resp.Sections[0].Resource).To(Equal("album"))
 		Expect(resp.Sections[0].Items).ToNot(BeEmpty())
 
 		// Called once per section
-		Expect(alRepo.Calls).To(HaveLen(8))
-		Expect(alRepo.Calls[0].Sort).To(Equal("play_date"))
-		Expect(alRepo.Calls[0].Max).To(Equal(7))
-		Expect(alRepo.Calls[1].Sort).To(Equal("starred_at"))
-		Expect(alRepo.Calls[2].Sort).To(Equal("recently_added"))
-		Expect(alRepo.Calls[3].Sort).To(Equal("play_count"))
-		Expect(alRepo.Calls[4].Sort).To(Equal("play_count"))
-		Expect(alRepo.Calls[5].Sort).To(Equal("play_count"))
-		Expect(alRepo.Calls[6].Sort).To(Equal("recently_added"))
-		Expect(alRepo.Calls[7].Sort).To(Equal("random"))
-		Expect(alRepo.Calls[7].Seed).To(Equal("s"))
+		Expect(alRepo.Calls).To(HaveLen(12))
+
+		countSort := func(sort string) int {
+			count := 0
+			for _, c := range alRepo.Calls {
+				if c.Sort == sort {
+					count++
+				}
+			}
+			return count
+		}
+
+		randomSeeds := []string{}
+		for _, c := range alRepo.Calls {
+			Expect(c.Max).To(Equal(7))
+			if c.Sort == "random" {
+				randomSeeds = append(randomSeeds, c.Seed)
+			}
+		}
+
+		// The endpoint should query all baseline sections + the new mixes.
+		Expect(countSort("play_date")).To(Equal(1))
+		Expect(countSort("starred_at")).To(Equal(1))
+		Expect(countSort("recently_added")).To(Equal(2))
+		Expect(countSort("play_count")).To(Equal(3))
+		Expect(countSort("random")).To(Equal(5))
+		Expect(randomSeeds).To(ConsistOf("s", "s-dm1", "s-dm2", "s-dm3", "s-inspired"))
 	})
 })

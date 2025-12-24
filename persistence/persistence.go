@@ -93,6 +93,10 @@ func (s *SQLStore) Scrobble(ctx context.Context) model.ScrobbleRepository {
 	return NewScrobbleRepository(ctx, s.getDBXBuilder())
 }
 
+func (s *SQLStore) UserEvent(ctx context.Context) model.UserEventRepository {
+	return NewUserEventRepository(ctx, s.getDBXBuilder())
+}
+
 func (s *SQLStore) Podcast(ctx context.Context) model.PodcastRepository {
 	return NewPodcastRepository(ctx, s.getDBXBuilder())
 }

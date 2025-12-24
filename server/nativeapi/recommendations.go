@@ -40,6 +40,7 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 		now := time.Now().UTC()
 		onRepeatCutoff := now.AddDate(0, 0, -14)
 		rediscoverCutoff := now.AddDate(0, 0, -30)
+		inspiredByCutoff := now.AddDate(0, 0, -7)
 
 		albumRepo := api.ds.Album(r.Context())
 		recentlyPlayed, err := albumRepo.GetAll(model.QueryOptions{
@@ -145,7 +146,135 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 			return
 		}
 
+		// Derive a small set of “seed” artists from the user's recent listening patterns.
+		// Note: this is intentionally lightweight and based on existing per-user play_count/play_date.
+		seenArtists := map[string]struct{}{}
+		var seedArtistIDs []string
+		appendArtists := func(albums model.Albums) {
+			for _, a := range albums {
+				if a.AlbumArtistID == "" {
+					continue
+				}
+				if _, ok := seenArtists[a.AlbumArtistID]; ok {
+					continue
+				}
+				seenArtists[a.AlbumArtistID] = struct{}{}
+				seedArtistIDs = append(seedArtistIDs, a.AlbumArtistID)
+			}
+		}
+		appendArtists(onRepeat)
+		appendArtists(recentlyPlayed)
+		appendArtists(mostPlayed)
+
+		mix1IDs := seedArtistIDs
+		if len(mix1IDs) > 3 {
+			mix1IDs = mix1IDs[:3]
+		}
+		mix2IDs := []string{}
+		if len(seedArtistIDs) > 3 {
+			mix2IDs = seedArtistIDs[3:]
+			if len(mix2IDs) > 3 {
+				mix2IDs = mix2IDs[:3]
+			}
+		}
+
+		dailyMix1Filters := squirrel.Sqlizer(nil)
+		if len(mix1IDs) > 0 {
+			dailyMix1Filters = squirrel.Eq{"album_artist_id": mix1IDs}
+		}
+		dailyMix1, err := albumRepo.GetAll(model.QueryOptions{
+			Sort:    "random",
+			Order:   "ASC",
+			Max:     limit,
+			Seed:    seed + "-dm1",
+			Filters: dailyMix1Filters,
+		})
+		if err != nil {
+			log.Error(r.Context(), "Error building home recommendations", "section", "dailyMix1", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		dailyMix2Filters := squirrel.Sqlizer(nil)
+		if len(mix2IDs) > 0 {
+			dailyMix2Filters = squirrel.Eq{"album_artist_id": mix2IDs}
+		}
+		dailyMix2, err := albumRepo.GetAll(model.QueryOptions{
+			Sort:    "random",
+			Order:   "ASC",
+			Max:     limit,
+			Seed:    seed + "-dm2",
+			Filters: dailyMix2Filters,
+		})
+		if err != nil {
+			log.Error(r.Context(), "Error building home recommendations", "section", "dailyMix2", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		dailyMix3, err := albumRepo.GetAll(model.QueryOptions{
+			Sort:  "random",
+			Order: "ASC",
+			Max:   limit,
+			Seed:  seed + "-dm3",
+			Filters: squirrel.Or{
+				squirrel.Expr("play_date IS NULL"),
+				squirrel.Lt{"play_date": rediscoverCutoff},
+			},
+		})
+		if err != nil {
+			log.Error(r.Context(), "Error building home recommendations", "section", "dailyMix3", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		inspiredBy := model.Albums{}
+		if len(seedArtistIDs) > 0 {
+			inspiredBy, err = albumRepo.GetAll(model.QueryOptions{
+				Sort:  "random",
+				Order: "ASC",
+				Max:   limit,
+				Seed:  seed + "-inspired",
+				Filters: squirrel.And{
+					squirrel.Eq{"album_artist_id": seedArtistIDs[0]},
+					squirrel.Or{
+						squirrel.Expr("play_date IS NULL"),
+						squirrel.Lt{"play_date": inspiredByCutoff},
+					},
+				},
+			})
+			if err != nil {
+				log.Error(r.Context(), "Error building home recommendations", "section", "inspiredBy", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
 		resp := homeRecommendationsResponse{Sections: []homeRecommendationsSection{
+			{
+				ID:       "dailyMix1",
+				Resource: "album",
+				To:       "",
+				Items:    dailyMix1,
+			},
+			{
+				ID:       "dailyMix2",
+				Resource: "album",
+				To:       "",
+				Items:    dailyMix2,
+			},
+			{
+				ID:       "dailyMix3",
+				Resource: "album",
+				To:       "",
+				Items:    dailyMix3,
+			},
+			{
+				ID:       "inspiredBy",
+				Resource: "album",
+				To:       "",
+				Items:    inspiredBy,
+			},
 			{
 				ID:       "recentlyPlayed",
 				Resource: "album",

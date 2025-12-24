@@ -216,6 +216,17 @@ func (p *playTracker) NowPlaying(ctx context.Context, playerId string, playerNam
 	// Add 5 seconds buffer to ensure the NowPlaying info is available slightly longer than the track duration.
 	ttl := time.Duration(remaining+5) * time.Second
 	_ = p.playMap.AddWithTTL(playerId, info, ttl)
+	// Best-effort user behavior tracking (does not affect playback)
+	if err := p.ds.UserEvent(ctx).Record(model.UserEvent{
+		EventType:  "now_playing",
+		EntityType: "song",
+		EntityID:   trackId,
+		PlayerID:   playerId,
+		Position:   position,
+		OccurredAt: time.Now(),
+	}); err != nil {
+		log.Trace(ctx, "Error recording user event", "event", "now_playing", "trackId", trackId, err)
+	}
 	if conf.Server.EnableNowPlaying {
 		p.broker.SendBroadcastMessage(ctx, &events.NowPlayingCount{Count: p.playMap.Len()})
 	}

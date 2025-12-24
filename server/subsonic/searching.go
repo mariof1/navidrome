@@ -65,6 +65,16 @@ func callSearch[T any](ctx context.Context, s searchFunc[T], q string, offset, s
 func (api *Router) searchAll(ctx context.Context, sp *searchParams, musicFolderIds []int) (mediaFiles model.MediaFiles, albums model.Albums, artists model.Artists) {
 	start := time.Now()
 	q := sanitize.Accents(strings.ToLower(strings.TrimSuffix(sp.query, "*")))
+	// Best-effort user behavior tracking (does not affect search results)
+	if err := api.ds.UserEvent(ctx).Record(model.UserEvent{
+		EventType:  "search",
+		EntityType: "query",
+		EntityID:   "",
+		Query:      strings.Trim(sp.query, `"`),
+		OccurredAt: time.Now(),
+	}); err != nil {
+		log.Trace(ctx, "Error recording user event", "event", "search", "query", sp.query, err)
+	}
 
 	// Create query options for library filtering
 	var options []model.QueryOptions

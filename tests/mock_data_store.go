@@ -26,6 +26,7 @@ type MockDataStore struct {
 	MockedUserProps      model.UserPropsRepository
 	MockedScrobbleBuffer model.ScrobbleBufferRepository
 	MockedScrobble       model.ScrobbleRepository
+	MockedUserEvent      model.UserEventRepository
 	MockedRadio          model.RadioRepository
 	MockedPodcast        model.PodcastRepository
 	scrobbleBufferMu     sync.Mutex
@@ -236,6 +237,17 @@ func (db *MockDataStore) Scrobble(ctx context.Context) model.ScrobbleRepository 
 		}
 	}
 	return db.MockedScrobble
+}
+
+func (db *MockDataStore) UserEvent(ctx context.Context) model.UserEventRepository {
+	if db.MockedUserEvent == nil {
+		if db.RealDS != nil {
+			db.MockedUserEvent = db.RealDS.UserEvent(ctx)
+		} else {
+			db.MockedUserEvent = CreateMockUserEventRepo()
+		}
+	}
+	return db.MockedUserEvent
 }
 
 func (db *MockDataStore) Radio(ctx context.Context) model.RadioRepository {
