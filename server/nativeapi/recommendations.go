@@ -12,38 +12,62 @@ import (
 
 	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
 	"github.com/navidrome/navidrome/model/request"
 )
 
-func parseISODateSeed(seed string) (time.Time, bool) {
+func parseISODateSeed(seed string) (string, bool) {
 	if seed == "" {
-		return time.Time{}, false
+		return "", false
 	}
-	t, err := time.Parse("2006-01-02", seed)
-	if err != nil {
-		return time.Time{}, false
+	if _, err := time.Parse("2006-01-02", seed); err != nil {
+		return "", false
 	}
-	return t, true
+	return seed, true
 }
 
 func syncDailyMixPlaylistsBestEffort(ctx context.Context, ds model.DataStore, seed string, sections []homeRecommendationsSection) {
-	seedDay, ok := parseISODateSeed(seed)
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Warn(ctx, "Daily Mix playlist sync panicked", "seed", seed, "recover", rec)
+		}
+	}()
+
+	seedKey, ok := parseISODateSeed(seed)
 	if !ok {
-		return
+		// Fall back to server-side day key so playlists still appear even if the UI seed changes.
+		seedKey = time.Now().UTC().Format("2006-01-02")
 	}
+
+	ctxUser := ctx
 	usr, ok := request.UserFrom(ctx)
 	if !ok || usr.ID == "" {
+		// Some handlers may only have the JWT verified but not the user loaded.
+		// Try to derive the username from the token and load the user for permission checks.
+		token, _, err := jwtauth.FromContext(ctx)
+		if err == nil && token != nil {
+			username := token.Subject()
+			if username != "" {
+				u, uerr := ds.User(ctx).FindByUsername(username)
+				if uerr == nil && u != nil {
+					usr = *u
+					ctxUser = request.WithUser(ctx, *u)
+				}
+			}
+		}
+	}
+	if usr.ID == "" {
 		return
 	}
 
-	// Collect the generated mixes from the response we’re about to send.
-	mixes := map[int]model.MediaFiles{}
+	// Build track IDs for each Daily Mix from the section contents.
+	// - If the section already contains songs, use them directly.
+	// - If it contains albums, expand into songs via a random query.
+	trackIDsByMix := map[int][]string{}
+	albumIDsByMix := map[int][]string{}
 	for _, sec := range sections {
-		if sec.Resource != "song" {
-			continue
-		}
 		var idx int
 		switch sec.ID {
 		case "dailyMix1":
@@ -55,17 +79,77 @@ func syncDailyMixPlaylistsBestEffort(ctx context.Context, ds model.DataStore, se
 		default:
 			continue
 		}
-		if mf, ok := sec.Items.(model.MediaFiles); ok {
-			mixes[idx] = mf
+
+		// Songs-first.
+		if sec.Resource == "song" {
+			if mfs, ok := sec.Items.(model.MediaFiles); ok {
+				ids := make([]string, 0, len(mfs))
+				for _, mf := range mfs {
+					if mf.ID != "" {
+						ids = append(ids, mf.ID)
+					}
+				}
+				trackIDsByMix[idx] = ids
+				continue
+			}
+		}
+
+		// Album fallback.
+		if albums, ok := sec.Items.(model.Albums); ok {
+			albumIDs := make([]string, 0, len(albums))
+			for _, a := range albums {
+				if a.ID != "" {
+					albumIDs = append(albumIDs, a.ID)
+				}
+			}
+			albumIDsByMix[idx] = albumIDs
 		}
 	}
-	if len(mixes) == 0 {
-		return
+
+	mediaRepo := ds.MediaFile(ctxUser)
+	for i := 1; i <= 3; i++ {
+		if _, ok := trackIDsByMix[i]; ok {
+			continue
+		}
+		albumIDs := albumIDsByMix[i]
+		if len(albumIDs) == 0 {
+			trackIDsByMix[i] = nil
+			continue
+		}
+
+		maxTracks := len(albumIDs) * 10
+		if maxTracks < 25 {
+			maxTracks = 25
+		}
+		if maxTracks > 150 {
+			maxTracks = 150
+		}
+
+		mfs, err := mediaRepo.GetAll(model.QueryOptions{
+			Sort:  "random",
+			Order: "ASC",
+			Max:   maxTracks,
+			Seed:  seed + "-pl-dm" + strconv.Itoa(i),
+			Filters: squirrel.Eq{
+				"album_id": albumIDs,
+			},
+		})
+		if err != nil {
+			log.Warn(ctx, "Failed to build Daily Mix playlist tracks", "mix", i, err)
+			trackIDsByMix[i] = nil
+			continue
+		}
+		ids := make([]string, 0, len(mfs))
+		for _, mf := range mfs {
+			if mf.ID != "" {
+				ids = append(ids, mf.ID)
+			}
+		}
+		trackIDsByMix[i] = ids
 	}
 
-	seedKey := seedDay.Format("2006-01-02")
 	err := ds.WithTxImmediate(func(tx model.DataStore) error {
-		repo := tx.Playlist(ctx)
+		repo := tx.Playlist(ctxUser)
 		for i := 1; i <= 3; i++ {
 			path := model.DailyMixPlaylistPath(usr.ID, i)
 			pls, err := repo.FindByPath(path)
@@ -102,13 +186,7 @@ func syncDailyMixPlaylistsBestEffort(ctx context.Context, ds model.DataStore, se
 				if err := tracks.DeleteAll(); err != nil {
 					return err
 				}
-				mfs := mixes[i]
-				ids := make([]string, 0, len(mfs))
-				for _, mf := range mfs {
-					if mf.ID != "" {
-						ids = append(ids, mf.ID)
-					}
-				}
+				ids := trackIDsByMix[i]
 				if len(ids) > 0 {
 					if _, err := tracks.Add(ids); err != nil {
 						return err
