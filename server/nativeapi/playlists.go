@@ -17,6 +17,18 @@ import (
 	"github.com/navidrome/navidrome/utils/req"
 )
 
+func forbidDailyMixPlaylistMutations(ds model.DataStore, w http.ResponseWriter, r *http.Request, playlistId string) bool {
+	if playlistId == "" {
+		return false
+	}
+	pls, err := ds.Playlist(r.Context()).Get(playlistId)
+	if err == nil && pls != nil && pls.IsDailyMixPlaylist() {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return true
+	}
+	return false
+}
+
 type restHandler = func(rest.RepositoryConstructor, ...rest.Logger) http.HandlerFunc
 
 func getPlaylist(ds model.DataStore) http.HandlerFunc {
@@ -116,6 +128,9 @@ func deleteFromPlaylist(ds model.DataStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p := req.Params(r)
 		playlistId, _ := p.String(":playlistId")
+		if forbidDailyMixPlaylistMutations(ds, w, r, playlistId) {
+			return
+		}
 		ids, _ := p.Strings("id")
 		err := ds.WithTxImmediate(func(tx model.DataStore) error {
 			tracksRepo := tx.Playlist(r.Context()).Tracks(playlistId, true)
@@ -124,6 +139,10 @@ func deleteFromPlaylist(ds model.DataStore) http.HandlerFunc {
 		if len(ids) == 1 && errors.Is(err, model.ErrNotFound) {
 			log.Warn(r.Context(), "Track not found in playlist", "playlistId", playlistId, "id", ids[0])
 			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, rest.ErrPermissionDenied) {
+			http.Error(w, err.Error(), http.StatusForbidden)
 			return
 		}
 		if err != nil {
@@ -146,6 +165,9 @@ func addToPlaylist(ds model.DataStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p := req.Params(r)
 		playlistId, _ := p.String(":playlistId")
+		if forbidDailyMixPlaylistMutations(ds, w, r, playlistId) {
+			return
+		}
 		var payload addTracksPayload
 		err := json.NewDecoder(r.Body).Decode(&payload)
 		if err != nil {
@@ -155,21 +177,37 @@ func addToPlaylist(ds model.DataStore) http.HandlerFunc {
 		tracksRepo := ds.Playlist(r.Context()).Tracks(playlistId, true)
 		count, c := 0, 0
 		if c, err = tracksRepo.Add(payload.Ids); err != nil {
+			if errors.Is(err, rest.ErrPermissionDenied) {
+				http.Error(w, err.Error(), http.StatusForbidden)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		count += c
 		if c, err = tracksRepo.AddAlbums(payload.AlbumIds); err != nil {
+			if errors.Is(err, rest.ErrPermissionDenied) {
+				http.Error(w, err.Error(), http.StatusForbidden)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		count += c
 		if c, err = tracksRepo.AddArtists(payload.ArtistIds); err != nil {
+			if errors.Is(err, rest.ErrPermissionDenied) {
+				http.Error(w, err.Error(), http.StatusForbidden)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		count += c
 		if c, err = tracksRepo.AddDiscs(payload.Discs); err != nil {
+			if errors.Is(err, rest.ErrPermissionDenied) {
+				http.Error(w, err.Error(), http.StatusForbidden)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -191,6 +229,9 @@ func reorderItem(ds model.DataStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p := req.Params(r)
 		playlistId, _ := p.String(":playlistId")
+		if forbidDailyMixPlaylistMutations(ds, w, r, playlistId) {
+			return
+		}
 		id := p.IntOr(":id", 0)
 		if id == 0 {
 			http.Error(w, "invalid id", http.StatusBadRequest)

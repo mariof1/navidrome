@@ -112,6 +112,19 @@ func (api *Router) addPlaylistRoute(r chi.Router) {
 		return api.ds.Resource(ctx, model.Playlist{})
 	}
 
+	forbidIfDailyMix := func(w http.ResponseWriter, r *http.Request) bool {
+		id := chi.URLParam(r, "id")
+		if id == "" {
+			return false
+		}
+		pls, err := api.ds.Playlist(r.Context()).Get(id)
+		if err == nil && pls != nil && pls.IsDailyMixPlaylist() {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return true
+		}
+		return false
+	}
+
 	r.Route("/playlist", func(r chi.Router) {
 		r.Get("/", rest.GetAll(constructor))
 		r.Post("/", func(w http.ResponseWriter, r *http.Request) {
@@ -125,8 +138,18 @@ func (api *Router) addPlaylistRoute(r chi.Router) {
 		r.Route("/{id}", func(r chi.Router) {
 			r.Use(server.URLParamsMiddleware)
 			r.Get("/", rest.Get(constructor))
-			r.Put("/", rest.Put(constructor))
-			r.Delete("/", rest.Delete(constructor))
+			r.Put("/", func(w http.ResponseWriter, r *http.Request) {
+				if forbidIfDailyMix(w, r) {
+					return
+				}
+				rest.Put(constructor)(w, r)
+			})
+			r.Delete("/", func(w http.ResponseWriter, r *http.Request) {
+				if forbidIfDailyMix(w, r) {
+					return
+				}
+				rest.Delete(constructor)(w, r)
+			})
 		})
 	})
 }

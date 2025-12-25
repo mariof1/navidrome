@@ -2,9 +2,11 @@ package subsonic
 
 import (
 	"context"
+	"errors"
 
 	"github.com/navidrome/navidrome/core"
 	"github.com/navidrome/navidrome/model"
+	"github.com/navidrome/navidrome/server/subsonic/responses"
 	"github.com/navidrome/navidrome/tests"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -64,6 +66,19 @@ var _ = Describe("UpdatePlaylist", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(playlists.lastPlaylistID).To(Equal("123"))
 		Expect(playlists.lastPublic).To(BeNil())
+	})
+
+	It("rejects updates to auto Daily Mix playlists", func() {
+		mockDS := ds.(*tests.MockDataStore)
+		mockDS.MockedPlaylist = &tests.MockPlaylistRepo{Entity: &model.Playlist{ID: "123", Path: model.DailyMixPlaylistPath("user-1", 1)}}
+		r := newGetRequest("playlistId=123", "name=Nope")
+		resp, err := router.UpdatePlaylist(r)
+		Expect(resp).To(BeNil())
+		Expect(err).To(HaveOccurred())
+		var subErr subError
+		Expect(errors.As(err, &subErr)).To(BeTrue())
+		Expect(subErr.code).To(Equal(responses.ErrorAuthorizationFail))
+		Expect(playlists.lastPlaylistID).To(Equal(""))
 	})
 })
 

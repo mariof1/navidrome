@@ -1,14 +1,26 @@
 package model
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/navidrome/navidrome/model/criteria"
 	"golang.org/x/text/unicode/norm"
 	"path/filepath"
 )
+
+const DailyMixPlaylistPathPrefix = "navidrome:dailymix:"
+
+func DailyMixPlaylistPath(userID string, mix int) string {
+	return fmt.Sprintf("%s%s:%d", DailyMixPlaylistPathPrefix, userID, mix)
+}
+
+func IsDailyMixPlaylistPath(path string) bool {
+	return strings.HasPrefix(path, DailyMixPlaylistPathPrefix)
+}
 
 type Playlist struct {
 	ID        string         `structs:"id" json:"id"`
@@ -49,6 +61,10 @@ func NormalizePlaylistPathNFD(path string) string {
 
 func (pls Playlist) IsSmartPlaylist() bool {
 	return pls.Rules != nil && pls.Rules.Expression != nil
+}
+
+func (pls Playlist) IsDailyMixPlaylist() bool {
+	return IsDailyMixPlaylistPath(pls.Path)
 }
 
 func (pls Playlist) MediaFiles() MediaFiles {
