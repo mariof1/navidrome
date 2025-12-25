@@ -2,7 +2,9 @@ package nativeapi
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -31,6 +33,169 @@ type homeSectionCandidate struct {
 	Build    func() (model.Albums, error)
 }
 
+func overfetchMax(limit int) int {
+	if limit <= 0 {
+		return 0
+	}
+	max := limit * 5
+	if max < limit {
+		max = limit
+	}
+	if max > 200 {
+		max = 200
+	}
+	return max
+}
+
+func albumScoreForMix(a model.Album, now time.Time) float64 {
+	// Higher is better. This is intentionally simple (and explainable):
+	// - Big boost for never-played albums
+	// - Prefer albums not played recently
+	// - Small familiarity boost for higher play counts
+	neverPlayedBoost := 0.0
+	if a.PlayCount == 0 {
+		neverPlayedBoost = 1000
+	}
+
+	daysSincePlay := 0.0
+	if a.PlayDate != nil {
+		daysSincePlay = now.Sub(*a.PlayDate).Hours() / 24
+		if daysSincePlay < 0 {
+			daysSincePlay = 0
+		}
+		// Cap so ancient plays don't dominate too much.
+		if daysSincePlay > 365 {
+			daysSincePlay = 365
+		}
+	} else {
+		// Treat unknown/never as "very old" without overpowering the never-played boost.
+		daysSincePlay = 90
+	}
+
+	familiarity := math.Log1p(float64(a.PlayCount)) * 8
+	return neverPlayedBoost + (daysSincePlay * 4) + familiarity
+}
+
+func selectDiverseAlbums(candidates model.Albums, limit int, now time.Time, excluded map[string]struct{}, maxPerArtist int, requiredArtistIDs []string) model.Albums {
+	if limit <= 0 || len(candidates) == 0 {
+		return nil
+	}
+	if maxPerArtist <= 0 {
+		maxPerArtist = limit
+	}
+
+	// De-dupe and apply exclusions.
+	seen := make(map[string]struct{}, len(candidates))
+	filtered := make(model.Albums, 0, len(candidates))
+	for _, a := range candidates {
+		if a.ID == "" {
+			continue
+		}
+		if _, ok := excluded[a.ID]; ok {
+			continue
+		}
+		if _, ok := seen[a.ID]; ok {
+			continue
+		}
+		seen[a.ID] = struct{}{}
+		filtered = append(filtered, a)
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+
+	scores := make(map[string]float64, len(filtered))
+	for _, a := range filtered {
+		scores[a.ID] = albumScoreForMix(a, now)
+	}
+
+	// Sort best-first. Candidate order is already pseudo-random due to DB seed;
+	// this turns that random sample into a more relevant mix.
+	sort.SliceStable(filtered, func(i, j int) bool {
+		return scores[filtered[i].ID] > scores[filtered[j].ID]
+	})
+
+	artistKey := func(a model.Album) string {
+		if a.AlbumArtistID != "" {
+			return a.AlbumArtistID
+		}
+		// Fallback to keep compilations from being overly constrained.
+		return a.ID
+	}
+
+	add := func(out *model.Albums, artistCounts map[string]int, picked map[string]struct{}, a model.Album, capPerArtist int) bool {
+		if len(*out) >= limit {
+			return false
+		}
+		if _, ok := picked[a.ID]; ok {
+			return false
+		}
+		k := artistKey(a)
+		if artistCounts[k] >= capPerArtist {
+			return false
+		}
+		picked[a.ID] = struct{}{}
+		artistCounts[k]++
+		*out = append(*out, a)
+		return true
+	}
+
+	out := make(model.Albums, 0, min(limit, len(filtered)))
+	picked := make(map[string]struct{}, limit)
+	artistCounts := make(map[string]int, limit)
+
+	// First pass: ensure coverage of required seed artists (if possible).
+	if len(requiredArtistIDs) > 0 {
+		need := make(map[string]struct{}, len(requiredArtistIDs))
+		for _, id := range requiredArtistIDs {
+			if id != "" {
+				need[id] = struct{}{}
+			}
+		}
+		for _, req := range requiredArtistIDs {
+			if _, ok := need[req]; !ok {
+				continue
+			}
+			for _, a := range filtered {
+				if a.AlbumArtistID != req {
+					continue
+				}
+				if add(&out, artistCounts, picked, a, maxPerArtist) {
+					delete(need, req)
+					break
+				}
+			}
+		}
+	}
+
+	// Second pass: fill respecting the per-artist cap.
+	for _, a := range filtered {
+		if len(out) >= limit {
+			break
+		}
+		add(&out, artistCounts, picked, a, maxPerArtist)
+	}
+
+	// Final pass: if we still couldn't fill, relax the cap.
+	if len(out) < limit {
+		for _, a := range filtered {
+			if len(out) >= limit {
+				break
+			}
+			add(&out, artistCounts, picked, a, limit)
+		}
+	}
+
+	return out
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func (api *Router) addRecommendationsRoute(r chi.Router) {
 	r.Get("/recommendations/home", api.getHomeRecommendations())
 }
@@ -52,6 +217,7 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 		continueListeningCutoff := now.AddDate(0, 0, -3)
 
 		albumRepo := api.ds.Album(r.Context())
+		excludedMixAlbumIDs := map[string]struct{}{}
 
 		// Derive a small set of “seed” artists from the user's recent listening patterns.
 		// Prefer user_events-derived scoring if available; fallback to play_count/play_date.
@@ -154,13 +320,35 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				To:       "",
 				Kind:     "mix",
 				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+					poolMax := overfetchMax(limit)
+					maxPerArtist := 2
+					requiredArtists := []string(nil)
+					filters := dailyMix1Filters
+					if len(mix1IDs) > 0 {
+						maxPerArtist = int(math.Ceil(float64(limit) / float64(len(mix1IDs))))
+						if maxPerArtist < 2 {
+							maxPerArtist = 2
+						}
+						requiredArtists = mix1IDs
+					} else {
+						// Cold-start fallback: build a general-purpose mix.
+						filters = squirrel.Or{
+							squirrel.Expr("play_date IS NULL"),
+							squirrel.Lt{"play_date": rediscoverCutoff},
+							squirrel.Eq{"play_count": 0},
+						}
+					}
+					pool, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:    "random",
 						Order:   "ASC",
-						Max:     limit,
+						Max:     poolMax,
 						Seed:    dailyMix1Seed,
-						Filters: dailyMix1Filters,
+						Filters: filters,
 					})
+					if err != nil {
+						return nil, err
+					}
+					return selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, maxPerArtist, requiredArtists), nil
 				},
 			},
 			{
@@ -172,13 +360,22 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 					if len(mix2IDs) == 0 {
 						return nil, nil
 					}
-					return albumRepo.GetAll(model.QueryOptions{
+					poolMax := overfetchMax(limit)
+					maxPerArtist := int(math.Ceil(float64(limit) / float64(len(mix2IDs))))
+					if maxPerArtist < 2 {
+						maxPerArtist = 2
+					}
+					pool, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:    "random",
 						Order:   "ASC",
-						Max:     limit,
+						Max:     poolMax,
 						Seed:    dailyMix2Seed,
 						Filters: dailyMix2Filters,
 					})
+					if err != nil {
+						return nil, err
+					}
+					return selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, maxPerArtist, mix2IDs), nil
 				},
 			},
 			{
@@ -187,16 +384,22 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				To:       "",
 				Kind:     "mix",
 				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+					poolMax := overfetchMax(limit)
+					pool, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:  "random",
 						Order: "ASC",
-						Max:   limit,
+						Max:   poolMax,
 						Seed:  dailyMix3Seed,
 						Filters: squirrel.Or{
 							squirrel.Expr("play_date IS NULL"),
 							squirrel.Lt{"play_date": rediscoverCutoff},
+							squirrel.Eq{"play_count": 0},
 						},
 					})
+					if err != nil {
+						return nil, err
+					}
+					return selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, 2, nil), nil
 				},
 			},
 			{
@@ -208,19 +411,32 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 					if len(seedArtistIDs) == 0 {
 						return nil, nil
 					}
-					return albumRepo.GetAll(model.QueryOptions{
+					poolMax := overfetchMax(limit)
+					artistIDs := seedArtistIDs
+					if len(artistIDs) > 2 {
+						artistIDs = artistIDs[:2]
+					}
+					pool, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:  "random",
 						Order: "ASC",
-						Max:   limit,
+						Max:   poolMax,
 						Seed:  seed + "-inspired",
 						Filters: squirrel.And{
-							squirrel.Eq{"album_artist_id": seedArtistIDs[0]},
+							squirrel.Eq{"album_artist_id": artistIDs},
 							squirrel.Or{
 								squirrel.Expr("play_date IS NULL"),
 								squirrel.Lt{"play_date": inspiredByCutoff},
 							},
 						},
 					})
+					if err != nil {
+						return nil, err
+					}
+					maxPerArtist := int(math.Ceil(float64(limit) / float64(len(artistIDs))))
+					if maxPerArtist < 2 {
+						maxPerArtist = 2
+					}
+					return selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, maxPerArtist, artistIDs), nil
 				},
 			},
 			{
@@ -409,6 +625,13 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 			}
 			if len(items) == 0 {
 				continue
+			}
+			if cand.Kind == "mix" {
+				for _, a := range items {
+					if a.ID != "" {
+						excludedMixAlbumIDs[a.ID] = struct{}{}
+					}
+				}
 			}
 			sections = append(sections, homeRecommendationsSection{ID: cand.ID, Resource: cand.Resource, To: cand.To, Items: items})
 		}
