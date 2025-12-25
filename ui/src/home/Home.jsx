@@ -213,7 +213,7 @@ const Home = () => {
 
   const perPage = isDesktop ? 12 : 8
 
-  const seed = useMemo(() => Math.random().toString(36).slice(2), [])
+  const seed = useMemo(() => new Date().toISOString().slice(0, 10), [])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sections, setSections] = useState([])
