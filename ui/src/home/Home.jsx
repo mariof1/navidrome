@@ -117,27 +117,46 @@ const useStyles = makeStyles(
   { name: 'NDHome' },
 )
 
-const BucketCard = ({ title, items, disabled }) => {
+const BucketCard = ({ title, items, resource, disabled }) => {
   const classes = useStyles()
   const dataProvider = useDataProvider()
   const dispatch = useDispatch()
 
-  const albums = items || []
+  const records = items || []
 
-  const art = albums.slice(0, 4).map((a) => subsonic.getCoverArtUrl(a, 300, true))
+  const art = records.slice(0, 4).map((a) => subsonic.getCoverArtUrl(a, 300, true))
   while (art.length > 0 && art.length < 4) art.push(art[0])
   const hasArt = art.length > 0
 
   const playBucket = async ({ shuffle } = {}) => {
     if (disabled) return
 
+    // Song-based buckets: play directly without additional API calls.
+    if (resource === 'song') {
+      const songs = {}
+      const songIds = []
+      for (const s of records) {
+        if (!s?.id) continue
+        if (!songs[s.id]) {
+          songs[s.id] = s
+          songIds.push(s.id)
+        }
+      }
+      if (shuffle) {
+        dispatch(shuffleTracks(songs, songIds))
+      } else {
+        dispatch(playTracks(songs, songIds))
+      }
+      return
+    }
+
     // Build a queue of songs from the bucket's albums.
-    // Keep it lightweight by limiting to 500 total songs.
+    // Keep it lightweight by limiting total songs.
     const songs = {}
     const songIds = []
-    for (const a of albums) {
+    for (const a of records) {
       const res = await dataProvider.getList('song', {
-        pagination: { page: 1, perPage: 200 },
+        pagination: { page: 1, perPage: 500 },
         sort: { field: 'album', order: 'ASC' },
         filter: { album_id: a.id, missing: false },
       })
@@ -147,7 +166,7 @@ const BucketCard = ({ title, items, disabled }) => {
           songIds.push(s.id)
         }
       })
-      if (songIds.length >= 500) break
+      if (songIds.length >= 1500) break
     }
     if (shuffle) {
       dispatch(shuffleTracks(songs, songIds))
@@ -208,7 +227,13 @@ const BucketCard = ({ title, items, disabled }) => {
           </div>
         </div>
         <Typography className={classes.bucketSubtitle}>
-          {disabled ? 'No albums' : `${albums.length} albums`}
+          {disabled
+            ? resource === 'song'
+              ? 'No songs'
+              : 'No albums'
+            : resource === 'song'
+              ? `${records.length} songs`
+              : `${records.length} albums`}
         </Typography>
       </div>
     </div>
@@ -227,6 +252,7 @@ const BucketGroup = ({ title, sections, sectionIds, titleForId, rowClassName, sh
           id,
           title: titleForId(id),
           items: [],
+          resource: 'album',
           disabled: true,
         }
       }
@@ -238,6 +264,7 @@ const BucketGroup = ({ title, sections, sectionIds, titleForId, rowClassName, sh
         id,
         title: titleForId(id),
         items,
+        resource: s?.resource,
         disabled: items.length === 0,
       }
     })
@@ -252,7 +279,7 @@ const BucketGroup = ({ title, sections, sectionIds, titleForId, rowClassName, sh
       </Typography>
       <div className={rowClassName || classes.row}>
         {cards.map((c) => (
-          <BucketCard key={c.id} title={c.title} items={c.items} disabled={c.disabled} />
+          <BucketCard key={c.id} title={c.title} items={c.items} resource={c.resource} disabled={c.disabled} />
         ))}
       </div>
     </div>
@@ -269,7 +296,11 @@ const Home = () => {
 
   const perPage = isDesktop ? 12 : 8
 
-  const seed = useMemo(() => Math.random().toString(36).slice(2), [])
+  const seed = useMemo(() => {
+    // Stable daily seed so refresh doesn't reshuffle everything.
+    // (Mixes still change day-to-day.)
+    return new Date().toISOString().slice(0, 10)
+  }, [])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sections, setSections] = useState([])
@@ -346,7 +377,7 @@ const Home = () => {
   const sectionsById = useMemo(() => {
     const map = {}
     ;(sections || []).forEach((s) => {
-      if (s?.resource !== 'album' || !s?.id) return
+      if (!s?.id) return
       map[s.id] = s
     })
     return map

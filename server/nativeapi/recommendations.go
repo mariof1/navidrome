@@ -19,10 +19,23 @@ type homeRecommendationsResponse struct {
 }
 
 type homeRecommendationsSection struct {
-	ID       string       `json:"id"`
-	Resource string       `json:"resource"`
-	To       string       `json:"to"`
-	Items    model.Albums `json:"items"`
+	ID       string `json:"id"`
+	Resource string `json:"resource"`
+	To       string `json:"to"`
+	Items    any    `json:"items"`
+}
+
+type homeSectionResult struct {
+	Items any
+	Count int
+}
+
+func albumsResult(items model.Albums) homeSectionResult {
+	return homeSectionResult{Items: items, Count: len(items)}
+}
+
+func songsResult(items model.MediaFiles) homeSectionResult {
+	return homeSectionResult{Items: items, Count: len(items)}
 }
 
 type homeSectionCandidate struct {
@@ -30,7 +43,101 @@ type homeSectionCandidate struct {
 	Resource string
 	To       string
 	Kind     string
-	Build    func() (model.Albums, error)
+	Build    func() (homeSectionResult, error)
+}
+
+func mixTrackLimit(limit int) int {
+	// Home UI shows only a single card per bucket, so we can return more items for playback.
+	// Keep a reasonable cap to avoid overly large responses.
+	if limit <= 0 {
+		return 0
+	}
+	n := limit * 20
+	if n < 120 {
+		n = 120
+	}
+	if n > 500 {
+		n = 500
+	}
+	return n
+}
+
+func mixAlbumLimit(limit int) int {
+	// How many albums to sample to generate a longer song mix.
+	if limit <= 0 {
+		return 0
+	}
+	n := limit * 3
+	if n < 24 {
+		n = 24
+	}
+	if n > 60 {
+		n = 60
+	}
+	return n
+}
+
+func buildSongMixFromAlbums(songRepo model.MediaFileRepository, albums model.Albums, maxTracks int, seed string, excludedSongIDs map[string]struct{}) (model.MediaFiles, error) {
+	if maxTracks <= 0 || len(albums) == 0 {
+		return nil, nil
+	}
+	albumIDs := make([]string, 0, len(albums))
+	seenAlbum := map[string]struct{}{}
+	for _, a := range albums {
+		if a.ID == "" {
+			continue
+		}
+		if _, ok := seenAlbum[a.ID]; ok {
+			continue
+		}
+		seenAlbum[a.ID] = struct{}{}
+		albumIDs = append(albumIDs, a.ID)
+	}
+	if len(albumIDs) == 0 {
+		return nil, nil
+	}
+
+	poolMax := maxTracks
+	if poolMax < 200 {
+		poolMax = 200
+	}
+	if poolMax > 2000 {
+		poolMax = 2000
+	}
+
+	pool, err := songRepo.GetAll(model.QueryOptions{
+		Sort:  "random",
+		Order: "ASC",
+		Max:   poolMax,
+		Seed:  seed,
+		Filters: squirrel.And{
+			squirrel.Eq{"album_id": albumIDs},
+			squirrel.Eq{"missing": false},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(model.MediaFiles, 0, min(maxTracks, len(pool)))
+	seenSong := make(map[string]struct{}, maxTracks)
+	for _, s := range pool {
+		if len(out) >= maxTracks {
+			break
+		}
+		if s.ID == "" {
+			continue
+		}
+		if _, ok := excludedSongIDs[s.ID]; ok {
+			continue
+		}
+		if _, ok := seenSong[s.ID]; ok {
+			continue
+		}
+		seenSong[s.ID] = struct{}{}
+		out = append(out, s)
+	}
+	return out, nil
 }
 
 func overfetchMax(limit int) int {
@@ -217,7 +324,9 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 		continueListeningCutoff := now.AddDate(0, 0, -3)
 
 		albumRepo := api.ds.Album(r.Context())
+		songRepo := api.ds.MediaFile(r.Context())
 		excludedMixAlbumIDs := map[string]struct{}{}
+		excludedMixSongIDs := map[string]struct{}{}
 
 		// Derive a small set of “seed” artists from the user's recent listening patterns.
 		// Prefer user_events-derived scoring if available; fallback to play_count/play_date.
@@ -316,16 +425,18 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 		candidates := []homeSectionCandidate{
 			{
 				ID:       "dailyMix1",
-				Resource: "album",
+				Resource: "song",
 				To:       "",
 				Kind:     "mix",
-				Build: func() (model.Albums, error) {
-					poolMax := overfetchMax(limit)
+				Build: func() (homeSectionResult, error) {
+					albumLimit := mixAlbumLimit(limit)
+					trackLimit := mixTrackLimit(limit)
+					poolMax := overfetchMax(albumLimit)
 					maxPerArtist := 2
 					requiredArtists := []string(nil)
 					filters := dailyMix1Filters
 					if len(mix1IDs) > 0 {
-						maxPerArtist = int(math.Ceil(float64(limit) / float64(len(mix1IDs))))
+						maxPerArtist = int(math.Ceil(float64(albumLimit) / float64(len(mix1IDs))))
 						if maxPerArtist < 2 {
 							maxPerArtist = 2
 						}
@@ -346,23 +457,37 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 						Filters: filters,
 					})
 					if err != nil {
-						return nil, err
+						return homeSectionResult{}, err
 					}
-					return selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, maxPerArtist, requiredArtists), nil
+					pickedAlbums := selectDiverseAlbums(pool, albumLimit, now, excludedMixAlbumIDs, maxPerArtist, requiredArtists)
+					songs, err := buildSongMixFromAlbums(songRepo, pickedAlbums, trackLimit, dailyMix1Seed+"-songs", excludedMixSongIDs)
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					if len(songs) == 0 {
+						// Retry without exclusions if we filtered everything.
+						songs, err = buildSongMixFromAlbums(songRepo, pickedAlbums, trackLimit, dailyMix1Seed+"-songs2", map[string]struct{}{})
+						if err != nil {
+							return homeSectionResult{}, err
+						}
+					}
+					return songsResult(songs), nil
 				},
 			},
 			{
 				ID:       "dailyMix2",
-				Resource: "album",
+				Resource: "song",
 				To:       "",
 				Kind:     "mix",
-				Build: func() (model.Albums, error) {
-					poolMax := overfetchMax(limit)
+				Build: func() (homeSectionResult, error) {
+					albumLimit := mixAlbumLimit(limit)
+					trackLimit := mixTrackLimit(limit)
+					poolMax := overfetchMax(albumLimit)
 					filters := dailyMix2Filters
 					requiredArtists := mix2IDs
 					maxPerArtist := 2
 					if len(mix2IDs) > 0 {
-						maxPerArtist = int(math.Ceil(float64(limit) / float64(len(mix2IDs))))
+						maxPerArtist = int(math.Ceil(float64(albumLimit) / float64(len(mix2IDs))))
 						if maxPerArtist < 2 {
 							maxPerArtist = 2
 						}
@@ -385,15 +510,24 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 						Filters: filters,
 					})
 					if err != nil {
-						return nil, err
+						return homeSectionResult{}, err
 					}
-					items := selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, maxPerArtist, requiredArtists)
-					if len(items) == 0 {
-						// Avoid dropping the bucket if exclusions filtered everything.
-						items = selectDiverseAlbums(pool, limit, now, map[string]struct{}{}, maxPerArtist, requiredArtists)
+					pickedAlbums := selectDiverseAlbums(pool, albumLimit, now, excludedMixAlbumIDs, maxPerArtist, requiredArtists)
+					if len(pickedAlbums) == 0 {
+						pickedAlbums = selectDiverseAlbums(pool, albumLimit, now, map[string]struct{}{}, maxPerArtist, requiredArtists)
 					}
-					if len(items) == 0 {
-						// Last-resort fallback: pull from the whole library.
+					songs, err := buildSongMixFromAlbums(songRepo, pickedAlbums, trackLimit, dailyMix2Seed+"-songs", excludedMixSongIDs)
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					if len(songs) == 0 {
+						songs, err = buildSongMixFromAlbums(songRepo, pickedAlbums, trackLimit, dailyMix2Seed+"-songs2", map[string]struct{}{})
+						if err != nil {
+							return homeSectionResult{}, err
+						}
+					}
+					if len(songs) == 0 {
+						// Last-resort fallback: pick albums from the whole library.
 						fallbackPool, err := albumRepo.GetAll(model.QueryOptions{
 							Sort:  "random",
 							Order: "ASC",
@@ -401,23 +535,35 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 							Seed:  dailyMix2Seed + "-fallback",
 						})
 						if err != nil {
-							return nil, err
+							return homeSectionResult{}, err
 						}
-						items = selectDiverseAlbums(fallbackPool, limit, now, excludedMixAlbumIDs, 2, nil)
-						if len(items) == 0 {
-							items = selectDiverseAlbums(fallbackPool, limit, now, map[string]struct{}{}, 2, nil)
+						fallbackAlbums := selectDiverseAlbums(fallbackPool, albumLimit, now, excludedMixAlbumIDs, 2, nil)
+						if len(fallbackAlbums) == 0 {
+							fallbackAlbums = selectDiverseAlbums(fallbackPool, albumLimit, now, map[string]struct{}{}, 2, nil)
+						}
+						songs, err = buildSongMixFromAlbums(songRepo, fallbackAlbums, trackLimit, dailyMix2Seed+"-songs-fb", excludedMixSongIDs)
+						if err != nil {
+							return homeSectionResult{}, err
+						}
+						if len(songs) == 0 {
+							songs, err = buildSongMixFromAlbums(songRepo, fallbackAlbums, trackLimit, dailyMix2Seed+"-songs-fb2", map[string]struct{}{})
+							if err != nil {
+								return homeSectionResult{}, err
+							}
 						}
 					}
-					return items, nil
+					return songsResult(songs), nil
 				},
 			},
 			{
 				ID:       "dailyMix3",
-				Resource: "album",
+				Resource: "song",
 				To:       "",
 				Kind:     "mix",
-				Build: func() (model.Albums, error) {
-					poolMax := overfetchMax(limit)
+				Build: func() (homeSectionResult, error) {
+					albumLimit := mixAlbumLimit(limit)
+					trackLimit := mixTrackLimit(limit)
+					poolMax := overfetchMax(albumLimit)
 					pool, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:  "random",
 						Order: "ASC",
@@ -430,13 +576,23 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 						},
 					})
 					if err != nil {
-						return nil, err
+						return homeSectionResult{}, err
 					}
-					items := selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, 2, nil)
-					if len(items) == 0 {
-						items = selectDiverseAlbums(pool, limit, now, map[string]struct{}{}, 2, nil)
+					pickedAlbums := selectDiverseAlbums(pool, albumLimit, now, excludedMixAlbumIDs, 2, nil)
+					if len(pickedAlbums) == 0 {
+						pickedAlbums = selectDiverseAlbums(pool, albumLimit, now, map[string]struct{}{}, 2, nil)
 					}
-					if len(items) == 0 {
+					songs, err := buildSongMixFromAlbums(songRepo, pickedAlbums, trackLimit, dailyMix3Seed+"-songs", excludedMixSongIDs)
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					if len(songs) == 0 {
+						songs, err = buildSongMixFromAlbums(songRepo, pickedAlbums, trackLimit, dailyMix3Seed+"-songs2", map[string]struct{}{})
+						if err != nil {
+							return homeSectionResult{}, err
+						}
+					}
+					if len(songs) == 0 {
 						fallbackPool, err := albumRepo.GetAll(model.QueryOptions{
 							Sort:  "random",
 							Order: "ASC",
@@ -444,26 +600,38 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 							Seed:  dailyMix3Seed + "-fallback",
 						})
 						if err != nil {
-							return nil, err
+							return homeSectionResult{}, err
 						}
-						items = selectDiverseAlbums(fallbackPool, limit, now, excludedMixAlbumIDs, 2, nil)
-						if len(items) == 0 {
-							items = selectDiverseAlbums(fallbackPool, limit, now, map[string]struct{}{}, 2, nil)
+						fallbackAlbums := selectDiverseAlbums(fallbackPool, albumLimit, now, excludedMixAlbumIDs, 2, nil)
+						if len(fallbackAlbums) == 0 {
+							fallbackAlbums = selectDiverseAlbums(fallbackPool, albumLimit, now, map[string]struct{}{}, 2, nil)
+						}
+						songs, err = buildSongMixFromAlbums(songRepo, fallbackAlbums, trackLimit, dailyMix3Seed+"-songs-fb", excludedMixSongIDs)
+						if err != nil {
+							return homeSectionResult{}, err
+						}
+						if len(songs) == 0 {
+							songs, err = buildSongMixFromAlbums(songRepo, fallbackAlbums, trackLimit, dailyMix3Seed+"-songs-fb2", map[string]struct{}{})
+							if err != nil {
+								return homeSectionResult{}, err
+							}
 						}
 					}
-					return items, nil
+					return songsResult(songs), nil
 				},
 			},
 			{
 				ID:       "inspiredBy",
-				Resource: "album",
+				Resource: "song",
 				To:       "",
 				Kind:     "mix",
-				Build: func() (model.Albums, error) {
+				Build: func() (homeSectionResult, error) {
 					if len(seedArtistIDs) == 0 {
-						return nil, nil
+						return homeSectionResult{}, nil
 					}
-					poolMax := overfetchMax(limit)
+					albumLimit := mixAlbumLimit(limit)
+					trackLimit := mixTrackLimit(limit)
+					poolMax := overfetchMax(albumLimit)
 					artistIDs := seedArtistIDs
 					if len(artistIDs) > 2 {
 						artistIDs = artistIDs[:2]
@@ -482,13 +650,24 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 						},
 					})
 					if err != nil {
-						return nil, err
+						return homeSectionResult{}, err
 					}
-					maxPerArtist := int(math.Ceil(float64(limit) / float64(len(artistIDs))))
+					maxPerArtist := int(math.Ceil(float64(albumLimit) / float64(len(artistIDs))))
 					if maxPerArtist < 2 {
 						maxPerArtist = 2
 					}
-					return selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, maxPerArtist, artistIDs), nil
+					pickedAlbums := selectDiverseAlbums(pool, albumLimit, now, excludedMixAlbumIDs, maxPerArtist, artistIDs)
+					songs, err := buildSongMixFromAlbums(songRepo, pickedAlbums, trackLimit, (seed+"-inspired")+"-songs", excludedMixSongIDs)
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					if len(songs) == 0 {
+						songs, err = buildSongMixFromAlbums(songRepo, pickedAlbums, trackLimit, (seed+"-inspired")+"-songs2", map[string]struct{}{})
+						if err != nil {
+							return homeSectionResult{}, err
+						}
+					}
+					return songsResult(songs), nil
 				},
 			},
 			{
@@ -496,8 +675,8 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "",
 				Kind:     "history",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:  "play_date",
 						Order: "DESC",
 						Max:   limit,
@@ -506,6 +685,10 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 							squirrel.GtOrEq{"play_date": continueListeningCutoff},
 						},
 					})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 			{
@@ -513,13 +696,17 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "/album/recentlyPlayed?sort=play_date&order=DESC&filter={\"recently_played\":true}",
 				Kind:     "history",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:    "play_date",
 						Order:   "DESC",
 						Max:     limit,
 						Filters: squirrel.Gt{"play_count": 0},
 					})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 			{
@@ -527,13 +714,17 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "/album/starred?sort=starred_at&order=DESC&filter={\"starred\":true}",
 				Kind:     "favorites",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:    "starred_at",
 						Order:   "DESC",
 						Max:     limit,
 						Filters: squirrel.Gt{"starred": 0},
 					})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 			{
@@ -541,8 +732,8 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "",
 				Kind:     "favorites",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:  "starred_at",
 						Order: "DESC",
 						Max:   limit,
@@ -551,6 +742,10 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 							squirrel.Or{squirrel.Expr("play_date IS NULL"), squirrel.Lt{"play_date": rediscoverCutoff}},
 						},
 					})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 			{
@@ -558,8 +753,12 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "/album/recentlyAdded?sort=recently_added&order=DESC&filter={}",
 				Kind:     "library",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{Sort: "recently_added", Order: "DESC", Max: limit})
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{Sort: "recently_added", Order: "DESC", Max: limit})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 			{
@@ -567,13 +766,17 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "",
 				Kind:     "library",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:    "max_year",
 						Order:   "DESC",
 						Max:     limit,
 						Filters: squirrel.Gt{"max_year": 0},
 					})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 			{
@@ -581,13 +784,17 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "",
 				Kind:     "rated",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:    "rated_at",
 						Order:   "DESC",
 						Max:     limit,
 						Filters: squirrel.Gt{"rating": 0},
 					})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 			{
@@ -595,13 +802,17 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "/album/mostPlayed?sort=play_count&order=DESC&filter={\"recently_played\":true}",
 				Kind:     "history",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:    "play_count",
 						Order:   "DESC",
 						Max:     limit,
 						Filters: squirrel.Gt{"play_count": 0},
 					})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 			{
@@ -609,8 +820,8 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "",
 				Kind:     "history",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:  "play_count",
 						Order: "DESC",
 						Max:   limit,
@@ -619,6 +830,10 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 							squirrel.GtOrEq{"play_date": onRepeatCutoff},
 						},
 					})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 			{
@@ -626,8 +841,8 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "",
 				Kind:     "history",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:  "play_count",
 						Order: "DESC",
 						Max:   limit,
@@ -636,6 +851,10 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 							squirrel.Lt{"play_date": rediscoverCutoff},
 						},
 					})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 			{
@@ -643,8 +862,8 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "",
 				Kind:     "discovery",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:  "recently_added",
 						Order: "DESC",
 						Max:   limit,
@@ -652,6 +871,10 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 							squirrel.Eq{"play_count": 0},
 						},
 					})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 			{
@@ -659,8 +882,12 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				Resource: "album",
 				To:       "/album/random?sort=random&order=ASC&filter={}",
 				Kind:     "discovery",
-				Build: func() (model.Albums, error) {
-					return albumRepo.GetAll(model.QueryOptions{Sort: "random", Order: "ASC", Max: limit, Seed: seed})
+				Build: func() (homeSectionResult, error) {
+					items, err := albumRepo.GetAll(model.QueryOptions{Sort: "random", Order: "ASC", Max: limit, Seed: seed})
+					if err != nil {
+						return homeSectionResult{}, err
+					}
+					return albumsResult(items), nil
 				},
 			},
 		}
@@ -669,23 +896,35 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 		// Keep a stable ordering (as declared in candidates) so daily mixes stay grouped.
 		sections := make([]homeRecommendationsSection, 0, len(candidates))
 		for _, cand := range candidates {
-			items, err := cand.Build()
+			res, err := cand.Build()
 			if err != nil {
 				log.Error(r.Context(), "Error building home recommendations", "section", cand.ID, err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			if len(items) == 0 {
+			if res.Count == 0 {
 				continue
 			}
 			if cand.Kind == "mix" {
-				for _, a := range items {
-					if a.ID != "" {
-						excludedMixAlbumIDs[a.ID] = struct{}{}
+				switch v := res.Items.(type) {
+				case model.Albums:
+					for _, a := range v {
+						if a.ID != "" {
+							excludedMixAlbumIDs[a.ID] = struct{}{}
+						}
+					}
+				case model.MediaFiles:
+					for _, s := range v {
+						if s.ID != "" {
+							excludedMixSongIDs[s.ID] = struct{}{}
+						}
+						if s.AlbumID != "" {
+							excludedMixAlbumIDs[s.AlbumID] = struct{}{}
+						}
 					}
 				}
 			}
-			sections = append(sections, homeRecommendationsSection{ID: cand.ID, Resource: cand.Resource, To: cand.To, Items: items})
+			sections = append(sections, homeRecommendationsSection{ID: cand.ID, Resource: cand.Resource, To: cand.To, Items: res.Items})
 		}
 
 		resp := homeRecommendationsResponse{Sections: sections}
