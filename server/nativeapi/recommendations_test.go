@@ -47,8 +47,8 @@ var _ = Describe("Recommendations API", func() {
 		userRepo = tests.CreateMockUserRepo()
 
 		ds = &tests.MockDataStore{
-			MockedAlbum:    alRepo,
-			MockedUser:     userRepo,
+			MockedAlbum: alRepo,
+			MockedUser:  userRepo,
 			MockedUserEvent: &tests.MockUserEventRepo{
 				TopArtistIDs: []string{"artist-1", "artist-2", "artist-3", "artist-4", "artist-5", "artist-6"},
 			},
@@ -97,8 +97,12 @@ var _ = Describe("Recommendations API", func() {
 		var resp homeRecommendationsResponse
 		Expect(json.Unmarshal(w.Body.Bytes(), &resp)).To(Succeed())
 		Expect(resp.Sections).ToNot(BeEmpty())
-		Expect(resp.Sections).To(HaveLen(8))
+		// The endpoint should return all non-empty sections, in a stable order.
+		// Daily mixes must be grouped together at the top.
+		Expect(resp.Sections).To(HaveLen(16))
 		Expect(resp.Sections[0].ID).To(Equal("dailyMix1"))
+		Expect(resp.Sections[1].ID).To(Equal("dailyMix2"))
+		Expect(resp.Sections[2].ID).To(Equal("dailyMix3"))
 		Expect(resp.Sections[0].Resource).To(Equal("album"))
 		Expect(resp.Sections[0].Items).ToNot(BeEmpty())
 
