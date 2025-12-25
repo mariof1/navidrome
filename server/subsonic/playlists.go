@@ -94,6 +94,12 @@ func (api *Router) CreatePlaylist(r *http.Request) (*responses.Subsonic, error) 
 	if playlistId == "" && name == "" {
 		return nil, errors.New("required parameter name is missing")
 	}
+	if playlistId != "" {
+		pls, err := api.ds.Playlist(ctx).Get(playlistId)
+		if err == nil && pls != nil && pls.IsDailyMixPlaylist() {
+			return nil, newError(responses.ErrorAuthorizationFail)
+		}
+	}
 	id, err := api.create(ctx, playlistId, name, songIds)
 	if err != nil {
 		log.Error(r, err)
@@ -107,6 +113,10 @@ func (api *Router) DeletePlaylist(r *http.Request) (*responses.Subsonic, error) 
 	id, err := p.String("id")
 	if err != nil {
 		return nil, err
+	}
+	pls, gerr := api.ds.Playlist(r.Context()).Get(id)
+	if gerr == nil && pls != nil && pls.IsDailyMixPlaylist() {
+		return nil, newError(responses.ErrorAuthorizationFail)
 	}
 	err = api.ds.Playlist(r.Context()).Delete(id)
 	if errors.Is(err, model.ErrNotAuthorized) {
@@ -124,6 +134,10 @@ func (api *Router) UpdatePlaylist(r *http.Request) (*responses.Subsonic, error) 
 	playlistId, err := p.String("playlistId")
 	if err != nil {
 		return nil, err
+	}
+	pls, gerr := api.ds.Playlist(r.Context()).Get(playlistId)
+	if gerr == nil && pls != nil && pls.IsDailyMixPlaylist() {
+		return nil, newError(responses.ErrorAuthorizationFail)
 	}
 	songsToAdd, _ := p.Strings("songIdToAdd")
 	songIndexesToRemove, _ := p.Ints("songIndexToRemove")
