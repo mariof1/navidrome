@@ -2,8 +2,6 @@ package nativeapi
 
 import (
 	"encoding/json"
-	"hash/fnv"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
@@ -399,17 +397,10 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 			},
 		}
 
-		// Curate buckets to avoid flooding the Home UI.
-		maxSections := 8
-		pinned := []string{"dailyMix1"}
-
-		selectedIDs := curateHomeSectionIDs(candidates, pinned, maxSections, seed)
-		sections := make([]homeRecommendationsSection, 0, len(selectedIDs))
-		for _, id := range selectedIDs {
-			cand, ok := findCandidate(candidates, id)
-			if !ok {
-				continue
-			}
+		// Return all non-empty recommendation sections.
+		// Keep a stable ordering (as declared in candidates) so daily mixes stay grouped.
+		sections := make([]homeRecommendationsSection, 0, len(candidates))
+		for _, cand := range candidates {
 			items, err := cand.Build()
 			if err != nil {
 				log.Error(r.Context(), "Error building home recommendations", "section", cand.ID, err)
@@ -430,76 +421,4 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 			log.Error(r.Context(), "Error encoding home recommendations", err)
 		}
 	}
-}
-
-func findCandidate(cands []homeSectionCandidate, id string) (homeSectionCandidate, bool) {
-	for _, c := range cands {
-		if c.ID == id {
-			return c, true
-		}
-	}
-	return homeSectionCandidate{}, false
-}
-
-func curateHomeSectionIDs(cands []homeSectionCandidate, pinned []string, maxSections int, seed string) []string {
-	if maxSections <= 0 {
-		return nil
-	}
-
-	selected := make([]string, 0, maxSections)
-	selectedSet := map[string]struct{}{}
-	kindCount := map[string]int{}
-
-	add := func(id string) {
-		if len(selected) >= maxSections {
-			return
-		}
-		if _, ok := selectedSet[id]; ok {
-			return
-		}
-		cand, ok := findCandidate(cands, id)
-		if !ok {
-			return
-		}
-		// Lightweight diversity caps to avoid showing too many similar buckets.
-		if cand.Kind == "mix" && kindCount["mix"] >= 2 {
-			return
-		}
-		if cand.Kind == "favorites" && kindCount["favorites"] >= 1 {
-			return
-		}
-		if cand.Kind == "rated" && kindCount["rated"] >= 1 {
-			return
-		}
-		selected = append(selected, id)
-		selectedSet[id] = struct{}{}
-		kindCount[cand.Kind]++
-	}
-
-	for _, id := range pinned {
-		add(id)
-	}
-
-	optional := make([]homeSectionCandidate, 0, len(cands))
-	for _, c := range cands {
-		if _, ok := selectedSet[c.ID]; ok {
-			continue
-		}
-		optional = append(optional, c)
-	}
-
-	// Deterministic shuffle based on seed to keep Home stable per UI load.
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(seed))
-	rng := rand.New(rand.NewSource(int64(h.Sum64())))
-	rng.Shuffle(len(optional), func(i, j int) { optional[i], optional[j] = optional[j], optional[i] })
-
-	for _, c := range optional {
-		if len(selected) >= maxSections {
-			break
-		}
-		add(c.ID)
-	}
-
-	return selected
 }
