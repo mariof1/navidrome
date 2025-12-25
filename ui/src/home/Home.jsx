@@ -24,6 +24,10 @@ const useStyles = makeStyles(
     section: {
       marginTop: theme.spacing(3),
     },
+    groupTitle: {
+      marginTop: theme.spacing(3),
+      marginBottom: theme.spacing(1),
+    },
     header: {
       display: 'flex',
       alignItems: 'baseline',
@@ -47,6 +51,16 @@ const useStyles = makeStyles(
       gap: theme.spacing(2),
       overflowX: 'hidden',
       gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+      paddingBottom: theme.spacing(1),
+      [theme.breakpoints.down('xs')]: {
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      },
+    },
+    dailyMixRow: {
+      display: 'grid',
+      gap: theme.spacing(2),
+      overflowX: 'hidden',
+      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
       paddingBottom: theme.spacing(1),
       [theme.breakpoints.down('xs')]: {
         gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
@@ -79,6 +93,13 @@ const useStyles = makeStyles(
       padding: theme.spacing(1),
       minWidth: 0,
     },
+    bucketMetaHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: theme.spacing(1),
+      minWidth: 0,
+    },
     bucketName: {
       fontSize: 14,
       overflow: 'hidden',
@@ -96,31 +117,20 @@ const useStyles = makeStyles(
   { name: 'NDHome' },
 )
 
-const BucketRow = ({ title, items, loading }) => {
+const BucketCard = ({ title, items, disabled }) => {
   const classes = useStyles()
   const dataProvider = useDataProvider()
   const dispatch = useDispatch()
 
-  if (loading) {
-    return (
-      <div className={classes.section}>
-        <div className={classes.header}>
-          <Typography variant="h6">{title}</Typography>
-        </div>
-        <Loading loadingPrimary="ra.page.loading" />
-      </div>
-    )
-  }
-
   const albums = items || []
-  if (albums.length === 0) {
-    return null
-  }
 
   const art = albums.slice(0, 4).map((a) => subsonic.getCoverArtUrl(a, 300, true))
   while (art.length > 0 && art.length < 4) art.push(art[0])
+  const hasArt = art.length > 0
 
   const playBucket = async ({ shuffle } = {}) => {
+    if (disabled) return
+
     // Build a queue of songs from the bucket's albums.
     // Keep it lightweight by limiting to 500 total songs.
     const songs = {}
@@ -147,57 +157,103 @@ const BucketRow = ({ title, items, loading }) => {
   }
 
   return (
-    <div className={classes.section}>
-      <div className={classes.header}>
-        <Typography variant="h6">{title}</Typography>
-        <div className={classes.headerActions}>
-          <IconButton
-            aria-label="play"
-            size="small"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              playBucket({ shuffle: false })
-            }}
-          >
-            <PlayArrowIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            aria-label="shuffle"
-            size="small"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              playBucket({ shuffle: true })
-            }}
-          >
-            <ShuffleIcon fontSize="small" />
-          </IconButton>
-        </div>
+    <div
+      className={classes.bucketCard}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      onClick={() => playBucket({ shuffle: false })}
+      onKeyDown={(e) => {
+        if (disabled) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          playBucket({ shuffle: false })
+        }
+      }}
+      style={disabled ? { opacity: 0.6, cursor: 'default' } : undefined}
+    >
+      <div className={classes.bucketArtGrid}>
+        {hasArt &&
+          art.slice(0, 4).map((src, idx) => (
+            <img key={idx} className={classes.bucketArt} src={src} alt="" loading="lazy" />
+          ))}
       </div>
-      <div className={classes.row}>
-        <div
-          className={classes.bucketCard}
-          role="button"
-          tabIndex={0}
-          onClick={() => playBucket({ shuffle: false })}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              playBucket({ shuffle: false })
-            }
-          }}
-        >
-          <div className={classes.bucketArtGrid}>
-            {art.slice(0, 4).map((src, idx) => (
-              <img key={idx} className={classes.bucketArt} src={src} alt="" loading="lazy" />
-            ))}
-          </div>
-          <div className={classes.bucketMeta}>
-            <Typography className={classes.bucketName}>{title}</Typography>
-            <Typography className={classes.bucketSubtitle}>{albums.length} albums</Typography>
+      <div className={classes.bucketMeta}>
+        <div className={classes.bucketMetaHeader}>
+          <Typography className={classes.bucketName}>{title}</Typography>
+          <div className={classes.headerActions}>
+            <IconButton
+              aria-label="play"
+              size="small"
+              disabled={disabled}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                playBucket({ shuffle: false })
+              }}
+            >
+              <PlayArrowIcon fontSize="small" />
+            </IconButton>
+            <IconButton
+              aria-label="shuffle"
+              size="small"
+              disabled={disabled}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                playBucket({ shuffle: true })
+              }}
+            >
+              <ShuffleIcon fontSize="small" />
+            </IconButton>
           </div>
         </div>
+        <Typography className={classes.bucketSubtitle}>
+          {disabled ? 'No albums' : `${albums.length} albums`}
+        </Typography>
+      </div>
+    </div>
+  )
+}
+
+const BucketGroup = ({ title, sections, sectionIds, titleForId, rowClassName, showMissing }) => {
+  const classes = useStyles()
+
+  const cards = sectionIds
+    .map((id) => {
+      const s = sections[id]
+      if (!s) {
+        if (!showMissing) return null
+        return {
+          id,
+          title: titleForId(id),
+          items: [],
+          disabled: true,
+        }
+      }
+
+      const items = s?.items || []
+      if (items.length === 0 && !showMissing) return null
+
+      return {
+        id,
+        title: titleForId(id),
+        items,
+        disabled: items.length === 0,
+      }
+    })
+    .filter(Boolean)
+
+  if (cards.length === 0) return null
+
+  return (
+    <div className={classes.section}>
+      <Typography className={classes.groupTitle} variant="h6">
+        {title}
+      </Typography>
+      <div className={rowClassName || classes.row}>
+        {cards.map((c) => (
+          <BucketCard key={c.id} title={c.title} items={c.items} disabled={c.disabled} />
+        ))}
       </div>
     </div>
   )
@@ -281,6 +337,64 @@ const Home = () => {
     }
   }
 
+  const titleForId = (id) =>
+    translate(`resources.album.lists.${id}`, {
+      smart_count: 2,
+      _: titleFallback(id),
+    })
+
+  const sectionsById = useMemo(() => {
+    const map = {}
+    ;(sections || []).forEach((s) => {
+      if (s?.resource !== 'album' || !s?.id) return
+      map[s.id] = s
+    })
+    return map
+  }, [sections])
+
+  const groups = useMemo(
+    () => [
+      {
+        id: 'dailyMixes',
+        title: translate('home.groups.dailyMixes', { _: 'Daily mixes' }),
+        rowClassName: classes.dailyMixRow,
+        showMissing: true,
+        sectionIds: ['dailyMix1', 'dailyMix2', 'dailyMix3'],
+      },
+      {
+        id: 'inspired',
+        title: translate('home.groups.inspiredBy', { _: 'Inspired by you' }),
+        showMissing: false,
+        sectionIds: ['inspiredBy'],
+      },
+      {
+        id: 'keepListening',
+        title: translate('home.groups.keepListening', { _: 'Keep listening' }),
+        showMissing: false,
+        sectionIds: ['continueListening', 'recentlyPlayed', 'mostPlayed', 'onRepeat', 'rediscover'],
+      },
+      {
+        id: 'favorites',
+        title: translate('home.groups.favorites', { _: 'Favorites' }),
+        showMissing: false,
+        sectionIds: ['starred', 'forgottenFavorites', 'topRated'],
+      },
+      {
+        id: 'library',
+        title: translate('home.groups.library', { _: 'Library' }),
+        showMissing: false,
+        sectionIds: ['recentlyAdded', 'newReleases'],
+      },
+      {
+        id: 'discover',
+        title: translate('home.groups.discover', { _: 'Discover' }),
+        showMissing: false,
+        sectionIds: ['discoverFresh', 'random'],
+      },
+    ],
+    [classes.dailyMixRow, translate],
+  )
+
   return (
     <div className={classes.root}>
       <Title title={translate('menu.home', { _: 'Home' })} />
@@ -293,17 +407,16 @@ const Home = () => {
         </Typography>
       )}
 
-      {sections
-        .filter((s) => s?.resource === 'album')
-        .map((s) => (
-          <BucketRow
-            key={s.id}
-            title={translate(`resources.album.lists.${s.id}`, {
-              smart_count: 2,
-              _: titleFallback(s.id),
-            })}
-            items={s.items}
-            loading={loading}
+      {!loading &&
+        groups.map((g) => (
+          <BucketGroup
+            key={g.id}
+            title={g.title}
+            sections={sectionsById}
+            sectionIds={g.sectionIds}
+            titleForId={titleForId}
+            rowClassName={g.rowClassName}
+            showMissing={g.showMissing}
           />
         ))}
     </div>

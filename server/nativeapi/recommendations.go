@@ -357,25 +357,58 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 				To:       "",
 				Kind:     "mix",
 				Build: func() (model.Albums, error) {
-					if len(mix2IDs) == 0 {
-						return nil, nil
-					}
 					poolMax := overfetchMax(limit)
-					maxPerArtist := int(math.Ceil(float64(limit) / float64(len(mix2IDs))))
-					if maxPerArtist < 2 {
-						maxPerArtist = 2
+					filters := dailyMix2Filters
+					requiredArtists := mix2IDs
+					maxPerArtist := 2
+					if len(mix2IDs) > 0 {
+						maxPerArtist = int(math.Ceil(float64(limit) / float64(len(mix2IDs))))
+						if maxPerArtist < 2 {
+							maxPerArtist = 2
+						}
+					} else {
+						// If we don't have enough distinct seed artists, still show the bucket with a
+						// general mix (different seed keeps it distinct from dailyMix1/3).
+						requiredArtists = nil
+						filters = squirrel.Or{
+							squirrel.Expr("play_date IS NULL"),
+							squirrel.Lt{"play_date": rediscoverCutoff},
+							squirrel.Eq{"play_count": 0},
+						}
 					}
+
 					pool, err := albumRepo.GetAll(model.QueryOptions{
 						Sort:    "random",
 						Order:   "ASC",
 						Max:     poolMax,
 						Seed:    dailyMix2Seed,
-						Filters: dailyMix2Filters,
+						Filters: filters,
 					})
 					if err != nil {
 						return nil, err
 					}
-					return selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, maxPerArtist, mix2IDs), nil
+					items := selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, maxPerArtist, requiredArtists)
+					if len(items) == 0 {
+						// Avoid dropping the bucket if exclusions filtered everything.
+						items = selectDiverseAlbums(pool, limit, now, map[string]struct{}{}, maxPerArtist, requiredArtists)
+					}
+					if len(items) == 0 {
+						// Last-resort fallback: pull from the whole library.
+						fallbackPool, err := albumRepo.GetAll(model.QueryOptions{
+							Sort:  "random",
+							Order: "ASC",
+							Max:   poolMax,
+							Seed:  dailyMix2Seed + "-fallback",
+						})
+						if err != nil {
+							return nil, err
+						}
+						items = selectDiverseAlbums(fallbackPool, limit, now, excludedMixAlbumIDs, 2, nil)
+						if len(items) == 0 {
+							items = selectDiverseAlbums(fallbackPool, limit, now, map[string]struct{}{}, 2, nil)
+						}
+					}
+					return items, nil
 				},
 			},
 			{
@@ -399,7 +432,26 @@ func (api *Router) getHomeRecommendations() http.HandlerFunc {
 					if err != nil {
 						return nil, err
 					}
-					return selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, 2, nil), nil
+					items := selectDiverseAlbums(pool, limit, now, excludedMixAlbumIDs, 2, nil)
+					if len(items) == 0 {
+						items = selectDiverseAlbums(pool, limit, now, map[string]struct{}{}, 2, nil)
+					}
+					if len(items) == 0 {
+						fallbackPool, err := albumRepo.GetAll(model.QueryOptions{
+							Sort:  "random",
+							Order: "ASC",
+							Max:   poolMax,
+							Seed:  dailyMix3Seed + "-fallback",
+						})
+						if err != nil {
+							return nil, err
+						}
+						items = selectDiverseAlbums(fallbackPool, limit, now, excludedMixAlbumIDs, 2, nil)
+						if len(items) == 0 {
+							items = selectDiverseAlbums(fallbackPool, limit, now, map[string]struct{}{}, 2, nil)
+						}
+					}
+					return items, nil
 				},
 			},
 			{
