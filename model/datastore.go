@@ -41,6 +41,7 @@ type DataStore interface {
 	Scrobble(ctx context.Context) ScrobbleRepository
 	UserEvent(ctx context.Context) UserEventRepository
 	Podcast(ctx context.Context) PodcastRepository
+	Plugin(ctx context.Context) PluginRepository
 
 	Resource(ctx context.Context, model interface{}) ResourceRepository
 
