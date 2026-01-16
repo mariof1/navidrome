@@ -22,6 +22,8 @@ func TestScanner(t *testing.T) {
 			// The notify library creates internal goroutines for file watching that persist after Stop() is called.
 			// These are created by the plugins package tests and are expected behavior.
 			goleak.IgnoreTopFunction("github.com/rjeczalik/notify.(*recursiveTree).dispatch"),
+			goleak.IgnoreTopFunction("github.com/rjeczalik/notify.(*nonrecursiveTree).dispatch"),
+			goleak.IgnoreTopFunction("github.com/rjeczalik/notify.(*nonrecursiveTree).internal"),
 		)
 	}
 

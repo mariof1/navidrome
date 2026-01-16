@@ -23,10 +23,10 @@ CROSS_TAGLIB_VERSION ?= 2.1.1-1
 GOLANGCI_LINT_VERSION ?= v2.8.0
 
 UI_SRC_FILES := $(shell find ui -type f -not -path "ui/build/*" -not -path "ui/node_modules/*")
+UI_DEPS_STAMP := ui/node_modules/.deps-stamp
 
 setup: check_env download-deps install-golangci-lint setup-git ##@1_Run_First Install dependencies and prepare development environment
-	@echo Downloading Node dependencies...
-	@(cd ./ui && npm ci)
+	@$(MAKE) $(UI_DEPS_STAMP)
 .PHONY: setup
 
 dev: check_env   ##@Development Start Navidrome in development mode, with hot-reload for both frontend and backend
@@ -161,7 +161,12 @@ docker-buildjs: ##@Build Build only frontend using Docker
 	docker build --output "./ui" --target ui-bundle .
 .PHONY: docker-buildjs
 
-ui/build/index.html: $(UI_SRC_FILES)
+$(UI_DEPS_STAMP): ui/package.json ui/package-lock.json
+	@echo Downloading Node dependencies...
+	@(cd ./ui && npm ci)
+	@touch $(UI_DEPS_STAMP)
+
+ui/build/index.html: $(UI_DEPS_STAMP) $(UI_SRC_FILES)
 	@(cd ./ui && npm run build)
 
 docker-platforms: ##@Cross_Compilation List supported platforms

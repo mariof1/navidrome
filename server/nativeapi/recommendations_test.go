@@ -9,7 +9,6 @@ import (
 
 	"github.com/navidrome/navidrome/conf/configtest"
 	"github.com/navidrome/navidrome/consts"
-	"github.com/navidrome/navidrome/core"
 	"github.com/navidrome/navidrome/core/auth"
 	"github.com/navidrome/navidrome/model"
 	"github.com/navidrome/navidrome/server"
@@ -90,7 +89,7 @@ var _ = Describe("Recommendations API", func() {
 		}
 		mfRepo.SetData(mfs)
 
-		nativeRouter := New(ds, nil, nil, nil, nil, core.NewMockLibraryService(), nil)
+		nativeRouter := New(ds, nil, nil, nil, tests.NewMockLibraryService(), tests.NewMockUserService(), nil, nil, nil)
 		router = server.JWTVerifier(nativeRouter)
 	})
 
